@@ -22,6 +22,7 @@ class UiPreviewTests(unittest.TestCase):
         self.assertEqual(after.direction, MotionDirection.CW)
 
     def test_telemetry_view_renders_values(self) -> None:
+        root = None
         try:
             root = tk.Tk()
         except tk.TclError as exc:
@@ -40,23 +41,30 @@ class UiPreviewTests(unittest.TestCase):
             )
             view.update_telemetry(sample)
 
+            descendants = list(_walk_widgets(view))
             labels = [
                 child.cget("text")
-                for child in view.winfo_children()
+                for child in descendants
                 if hasattr(child, "cget") and child.winfo_class() == "TLabel"
             ]
             self.assertIn("Mechanical Angle (deg)", labels)
 
             rendered = [
                 child.cget("text")
-                for child in view.winfo_children()
+                for child in descendants
                 if hasattr(child, "cget")
                 and child.winfo_class() == "TLabel"
-                and child.cget("text") in {"12.34", "56.78", "Yes", "4.50", "CCW", "321"}
+                and child.cget("text") in {"12.34", "56.78", "RUNNING", "4.50", "CCW", "321"}
             ]
             self.assertEqual(len(rendered), 6)
         finally:
-            root.destroy()
+            if root is not None:
+                root.destroy()
+
+def _walk_widgets(widget: tk.Misc):
+    for child in widget.winfo_children():
+        yield child
+        yield from _walk_widgets(child)
 
 
 if __name__ == "__main__":

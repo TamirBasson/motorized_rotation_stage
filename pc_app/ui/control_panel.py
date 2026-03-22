@@ -7,14 +7,17 @@ from typing import Callable
 from pc_app.ui.controller_interface import StageController
 
 
-class ControlPanel(ttk.LabelFrame):
+StatusCallback = Callable[[str, str, str], None]
+
+
+class ControlPanel(ttk.Frame):
     def __init__(
         self,
         master: tk.Misc,
         controller: StageController,
-        status_callback: Callable[[str], None],
+        status_callback: StatusCallback,
     ) -> None:
-        super().__init__(master, text="Controls")
+        super().__init__(master, padding=18, style="Panel.TFrame")
         self._controller = controller
         self._status_callback = status_callback
 
@@ -35,106 +38,130 @@ class ControlPanel(ttk.LabelFrame):
         self._build()
 
     def _build(self) -> None:
-        self._add_labeled_entry("Absolute angle", self._abs_angle, 0)
-        self._add_labeled_entry("Absolute offset", self._abs_offset, 1)
-        self._add_labeled_entry("Absolute speed", self._abs_speed, 2)
-        self._add_labeled_combo("Absolute direction", self._abs_direction, ("CW", "CCW", "NULL"), 3)
-        ttk.Button(self, text="Rotate Absolute", command=self._on_rotate_absolute).grid(
+        ttk.Label(self, text="Command Panel", style="PanelTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            self,
+            text="Grouped operator controls for motion, zeroing, and telemetry management.",
+            style="PanelSubtitle.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(6, 16))
+
+        absolute = self._create_section("Absolute Move", "Target angle, offset, speed, and direction")
+        absolute.grid(row=2, column=0, sticky="ew")
+        self._add_labeled_entry(absolute, "Angle (deg)", self._abs_angle, 0)
+        self._add_labeled_entry(absolute, "Offset (deg)", self._abs_offset, 1)
+        self._add_labeled_entry(absolute, "Speed (deg/s)", self._abs_speed, 2)
+        self._add_labeled_combo(absolute, "Direction", self._abs_direction, ("CW", "CCW", "NULL"), 3)
+        ttk.Button(absolute, text="Rotate Absolute", style="Primary.TButton", command=self._on_rotate_absolute).grid(
+            row=6,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+            pady=(12, 0),
+        )
+
+        constant = self._create_section("Continuous Motion", "Steady rotation until a new command overrides it")
+        constant.grid(row=3, column=0, sticky="ew", pady=(14, 0))
+        self._add_labeled_entry(constant, "Speed (deg/s)", self._const_speed, 0)
+        self._add_labeled_combo(constant, "Direction", self._const_direction, ("CW", "CCW"), 1)
+        ttk.Button(constant, text="Constant Rotate", style="Secondary.TButton", command=self._on_constant_rotate).grid(
             row=4,
             column=0,
             columnspan=2,
             sticky="ew",
-            padx=8,
-            pady=(0, 10),
+            pady=(12, 0),
         )
 
-        self._add_labeled_entry("Constant speed", self._const_speed, 5)
-        self._add_labeled_combo("Constant direction", self._const_direction, ("CW", "CCW"), 6)
-        ttk.Button(self, text="Constant Rotate", command=self._on_constant_rotate).grid(
-            row=7,
+        relative = self._create_section("Relative Move", "Incremental correction and alignment control")
+        relative.grid(row=4, column=0, sticky="ew", pady=(14, 0))
+        self._add_labeled_entry(relative, "Delta (deg)", self._rel_delta, 0)
+        self._add_labeled_entry(relative, "Speed (deg/s)", self._rel_speed, 1)
+        ttk.Button(relative, text="Rotate Relative", style="Secondary.TButton", command=self._on_rotate_relative).grid(
+            row=4,
             column=0,
             columnspan=2,
             sticky="ew",
-            padx=8,
-            pady=(0, 10),
+            pady=(12, 0),
         )
 
-        self._add_labeled_entry("Relative delta", self._rel_delta, 8)
-        self._add_labeled_entry("Relative speed", self._rel_speed, 9)
-        ttk.Button(self, text="Rotate Relative", command=self._on_rotate_relative).grid(
-            row=10,
-            column=0,
-            columnspan=2,
-            sticky="ew",
-            padx=8,
-            pady=(0, 10),
-        )
-
-        self._add_labeled_entry("Virtual zero offset", self._vzero_offset, 11)
-        ttk.Button(self, text="Rotate Virtual Zero", command=self._on_rotate_virtual_zero).grid(
-            row=12,
-            column=0,
-            columnspan=2,
-            sticky="ew",
-            padx=8,
-            pady=(0, 10),
-        )
-
-        self._add_labeled_entry("Telemetry rate", self._telemetry_rate, 13)
-        ttk.Button(self, text="Set Telemetry Rate", command=self._on_set_telemetry_rate).grid(
-            row=14,
-            column=0,
-            columnspan=2,
-            sticky="ew",
-            padx=8,
-            pady=(0, 10),
-        )
-
-        ttk.Button(self, text="Rotate Mechanical Zero", command=self._on_rotate_mechanical_zero).grid(
-            row=15,
+        service = self._create_section("Reference and Telemetry", "Zeroing and reporting controls")
+        service.grid(row=5, column=0, sticky="ew", pady=(14, 0))
+        self._add_labeled_entry(service, "Virtual Zero Offset (deg)", self._vzero_offset, 0)
+        self._add_labeled_entry(service, "Telemetry Rate (Hz)", self._telemetry_rate, 1)
+        ttk.Button(service, text="Rotate Virtual Zero", style="Secondary.TButton", command=self._on_rotate_virtual_zero).grid(
+            row=4,
             column=0,
             sticky="ew",
-            padx=(8, 4),
-            pady=(0, 8),
+            pady=(12, 0),
+            padx=(0, 6),
         )
-        ttk.Button(self, text="Stop", command=self._on_stop).grid(
-            row=15,
+        ttk.Button(service, text="Set Telemetry Rate", style="Secondary.TButton", command=self._on_set_telemetry_rate).grid(
+            row=4,
             column=1,
             sticky="ew",
-            padx=(4, 8),
-            pady=(0, 8),
+            pady=(12, 0),
+            padx=(6, 0),
+        )
+        ttk.Button(service, text="Mechanical Zero", style="Primary.TButton", command=self._on_rotate_mechanical_zero).grid(
+            row=5,
+            column=0,
+            sticky="ew",
+            pady=(12, 0),
+            padx=(0, 6),
+        )
+        ttk.Button(service, text="Stop", style="Danger.TButton", command=self._on_stop).grid(
+            row=5,
+            column=1,
+            sticky="ew",
+            pady=(12, 0),
+            padx=(6, 0),
         )
 
         self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
 
-    def _add_labeled_entry(self, label: str, variable: tk.StringVar, row: int) -> None:
-        ttk.Label(self, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=4)
-        ttk.Entry(self, textvariable=variable).grid(row=row, column=1, sticky="ew", padx=8, pady=4)
+    def _create_section(self, title: str, subtitle: str) -> ttk.Frame:
+        section = ttk.Frame(self, padding=16, style="Card.TFrame")
+        section.columnconfigure(1, weight=1)
+        ttk.Label(section, text=title, style="SectionTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(section, text=subtitle, style="FieldLabel.TLabel").grid(
+            row=1,
+            column=0,
+            columnspan=2,
+            sticky="w",
+            pady=(4, 8),
+        )
+        return section
+
+    def _add_labeled_entry(self, parent: ttk.Frame, label: str, variable: tk.StringVar, row: int) -> None:
+        content_row = row + 2
+        ttk.Label(parent, text=label, style="FieldLabel.TLabel").grid(row=content_row, column=0, sticky="w", pady=6)
+        ttk.Entry(parent, textvariable=variable).grid(row=content_row, column=1, sticky="ew", pady=6)
 
     def _add_labeled_combo(
         self,
+        parent: ttk.Frame,
         label: str,
         variable: tk.StringVar,
         values: tuple[str, ...],
         row: int,
     ) -> None:
-        ttk.Label(self, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=4)
-        ttk.Combobox(self, textvariable=variable, values=values, state="readonly").grid(
-            row=row,
+        content_row = row + 2
+        ttk.Label(parent, text=label, style="FieldLabel.TLabel").grid(row=content_row, column=0, sticky="w", pady=6)
+        ttk.Combobox(parent, textvariable=variable, values=values, state="readonly").grid(
+            row=content_row,
             column=1,
             sticky="ew",
-            padx=8,
-            pady=4,
+            pady=6,
         )
 
     def _run_action(self, action: Callable[[], object]) -> None:
         try:
+            self._status_callback("Command In Progress", "Sending command to the controller preview.", "warning")
             ack = action()
         except Exception as exc:
-            self._status_callback(f"Error: {exc}")
+            self._status_callback("Command Failed", str(exc), "error")
             return
-        self._status_callback(f"ACK: {getattr(ack, 'command_type', 'UNKNOWN')}")
+        command_name = getattr(ack, "command_type", "UNKNOWN")
+        self._status_callback("Command Accepted", f"ACK received for {command_name}.", "success")
 
     def _on_rotate_absolute(self) -> None:
         self._run_action(
