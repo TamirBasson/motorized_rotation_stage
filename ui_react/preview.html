@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motorized Rotation Stage Controller - React Preview</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <style>
+      .preview-note {
+        margin-bottom: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(94, 162, 255, 0.2);
+        background: rgba(94, 162, 255, 0.07);
+        color: var(--text-soft);
+      }
+
+      .preview-note strong {
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="preview-note">
+        <strong>React UI preview:</strong> this is a build-free browser rendering of the same dashboard structure in
+        `ui_react/src`, used so you can inspect the design immediately on this machine.
+      </div>
+
+      <header class="app-header">
+        <div>
+          <p class="app-header__eyebrow">Motorized Rotation Stage Controller</p>
+          <h1 class="app-header__title">Lab Motion Dashboard</h1>
+          <p class="app-header__subtitle">
+            Operator-focused control surface with clear command isolation, live telemetry, and configuration visibility.
+          </p>
+        </div>
+
+        <div class="app-header__status-grid">
+          <div id="link-pill" class="header-pill header-pill--online">Controller Online</div>
+          <div id="motor-pill" class="header-pill header-pill--idle">Motor Idle</div>
+          <div id="queue-pill" class="header-pill header-pill--idle">No Pending Command</div>
+        </div>
+      </header>
+
+      <main class="dashboard-grid">
+        <div class="dashboard-grid__main">
+          <div id="status-banner" class="status-banner status-banner--success">
+            <div>
+              <p class="status-banner__eyebrow">System Status</p>
+              <h3 id="status-title" class="status-banner__title">System Ready</h3>
+              <p id="status-message" class="status-banner__message">
+                Preview mode is active. Commands are simulated without hardware.
+              </p>
+            </div>
+            <div id="status-chip" class="status-chip status-chip--ready">Ready</div>
+          </div>
+
+          <section class="panel">
+            <header class="panel__header">
+              <div>
+                <h2 class="panel__title">Telemetry Panel</h2>
+                <p class="panel__subtitle">Live engineering readout for immediate operator awareness.</p>
+              </div>
+            </header>
+
+            <div class="value-grid">
+              <div class="value-card value-card--primary">
+                <span class="value-card__label">Mechanical Angle</span>
+                <div class="value-card__value-row">
+                  <span id="mech-angle" class="value-card__value">123.45</span>
+                  <span class="value-card__unit">deg</span>
+                </div>
+              </div>
+
+              <div class="value-card value-card--primary">
+                <span class="value-card__label">Virtual Angle</span>
+                <div class="value-card__value-row">
+                  <span id="virt-angle" class="value-card__value">110.95</span>
+                  <span class="value-card__unit">deg</span>
+                </div>
+              </div>
+
+              <div class="value-card">
+                <span class="value-card__label">Speed</span>
+                <div class="value-card__value-row">
+                  <span id="speed-value" class="value-card__value">0.00</span>
+                  <span class="value-card__unit">deg/s</span>
+                </div>
+              </div>
+
+              <div class="value-card">
+                <span class="value-card__label">Direction</span>
+                <div class="value-card__value-row">
+                  <span id="direction-value" class="value-card__value">NONE</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="telemetry-strip">
+              <div class="telemetry-strip__item">
+                <span class="telemetry-strip__label">Motor State</span>
+                <strong id="motor-state" class="text-muted">IDLE</strong>
+              </div>
+              <div class="telemetry-strip__item">
+                <span class="telemetry-strip__label">Controller Link</span>
+                <strong class="text-accent">HEALTHY</strong>
+              </div>
+              <div class="telemetry-strip__item">
+                <span class="telemetry-strip__label">Steps</span>
+                <strong id="steps-value">9,876</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel__header">
+              <div>
+                <h2 class="panel__title">System Configuration Panel</h2>
+                <p class="panel__subtitle">
+                  Visible system constants reduce setup error during remote lab operation.
+                </p>
+              </div>
+            </header>
+
+            <div class="configuration-grid">
+              <label class="config-card">
+                <span class="config-card__label">Steps per Revolution</span>
+                <span class="config-card__hint">Motor native resolution</span>
+                <input id="cfg-steps" class="number-input number-input--large" type="number" value="200" step="1" />
+              </label>
+              <label class="config-card">
+                <span class="config-card__label">Gear Ratio</span>
+                <span class="config-card__hint">Mechanical transmission ratio</span>
+                <input id="cfg-gear" class="number-input number-input--large" type="number" value="36" step="0.1" />
+              </label>
+              <label class="config-card">
+                <span class="config-card__label">Virtual Zero Offset</span>
+                <span class="config-card__hint">Software reference offset</span>
+                <input
+                  id="cfg-vzero"
+                  class="number-input number-input--large"
+                  type="number"
+                  value="-12.5"
+                  step="0.1"
+                />
+              </label>
+            </div>
+
+            <div id="config-note" class="configuration-note">
+              Configuration edits are enabled. In production, these values should be committed through the shared
+              communication layer.
+            </div>
+          </section>
+        </div>
+
+        <aside class="dashboard-grid__side">
+          <section class="panel">
+            <header class="panel__header">
+              <div>
+                <h2 class="panel__title">Command Panel</h2>
+                <p class="panel__subtitle">
+                  Separated command zones reduce operator ambiguity during critical motion control.
+                </p>
+              </div>
+            </header>
+
+            <div class="command-group">
+              <div class="command-group__header">
+                <h3>Absolute Move</h3>
+                <span class="command-group__caption">Target angle, speed, and commanded direction</span>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label class="field__label">Angle</label>
+                  <span class="field__value"><span id="abs-angle-label">120.00</span> deg</span>
+                </div>
+                <div class="field__controls">
+                  <input id="abs-angle" class="slider" type="range" min="0" max="360" step="0.1" value="120" />
+                  <input id="abs-angle-input" class="number-input" type="number" min="0" max="360" step="0.1" value="120" />
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label class="field__label">Speed</label>
+                  <span class="field__value"><span id="abs-speed-label">5.00</span> deg/s</span>
+                </div>
+                <div class="field__controls">
+                  <input id="abs-speed" class="slider" type="range" min="0.1" max="20" step="0.1" value="5" />
+                  <input id="abs-speed-input" class="number-input" type="number" min="0.1" max="20" step="0.1" value="5" />
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label">Direction</label>
+                <div class="segmented">
+                  <button type="button" class="segmented__button segmented__button--active" data-dir="CW">CW</button>
+                  <button type="button" class="segmented__button" data-dir="CCW">CCW</button>
+                  <button type="button" class="segmented__button" data-dir="NULL">NULL</button>
+                </div>
+              </div>
+
+              <button id="btn-abs" type="button" class="command-button command-button--primary">Rotate Absolute</button>
+            </div>
+
+            <div class="command-group">
+              <div class="command-group__header">
+                <h3>Relative Move</h3>
+                <span class="command-group__caption">Incremental correction for alignment and quick recovery</span>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label class="field__label">Relative Angle</label>
+                  <span class="field__value"><span id="rel-angle-label">-45.00</span> deg</span>
+                </div>
+                <div class="field__controls">
+                  <input id="rel-angle" class="slider" type="range" min="-360" max="360" step="0.1" value="-45" />
+                  <input id="rel-angle-input" class="number-input" type="number" min="-360" max="360" step="0.1" value="-45" />
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field__header">
+                  <label class="field__label">Relative Speed</label>
+                  <span class="field__value"><span id="rel-speed-label">3.00</span> deg/s</span>
+                </div>
+                <div class="field__controls">
+                  <input id="rel-speed" class="slider" type="range" min="0.1" max="20" step="0.1" value="3" />
+                  <input id="rel-speed-input" class="number-input" type="number" min="0.1" max="20" step="0.1" value="3" />
+                </div>
+              </div>
+
+              <button id="btn-rel" type="button" class="command-button command-button--primary">Rotate Relative</button>
+            </div>
+
+            <div class="command-grid command-grid--compact">
+              <button id="btn-home" type="button" class="command-button command-button--primary">Mechanical Zero</button>
+              <button id="btn-vzero" type="button" class="command-button command-button--primary">Virtual Zero</button>
+              <button id="btn-stop" type="button" class="command-button command-button--danger" disabled>Stop</button>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+      const state = {
+        mechanicalAngleDeg: 123.45,
+        virtualAngleDeg: 110.95,
+        running: false,
+        speedDegPerSec: 0,
+        direction: "NONE",
+        steps: 9876,
+        activeCommand: null,
+        absoluteDirection: "CW",
+      };
+
+      const ids = {
+        mech: document.getElementById("mech-angle"),
+        virt: document.getElementById("virt-angle"),
+        speed: document.getElementById("speed-value"),
+        dir: document.getElementById("direction-value"),
+        steps: document.getElementById("steps-value"),
+        motorState: document.getElementById("motor-state"),
+        motorPill: document.getElementById("motor-pill"),
+        queuePill: document.getElementById("queue-pill"),
+        statusBanner: document.getElementById("status-banner"),
+        statusTitle: document.getElementById("status-title"),
+        statusMessage: document.getElementById("status-message"),
+        statusChip: document.getElementById("status-chip"),
+        stopButton: document.getElementById("btn-stop"),
+        configNote: document.getElementById("config-note"),
+      };
+
+      function normalizeAngle(value) {
+        const normalized = value % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
+      }
+
+      function setBusy(commandName) {
+        state.activeCommand = commandName;
+        ids.statusBanner.className = "status-banner status-banner--warning";
+        ids.statusTitle.textContent = "Command In Progress";
+        ids.statusMessage.textContent = commandName;
+        ids.statusChip.textContent = "Executing";
+        ids.statusChip.className = "status-chip status-chip--busy";
+        ids.queuePill.textContent = "Command Executing";
+        ids.queuePill.className = "header-pill header-pill--motion";
+        ids.stopButton.disabled = false;
+
+        document.querySelectorAll("#cfg-steps, #cfg-gear, #cfg-vzero").forEach((el) => {
+          el.disabled = true;
+        });
+        ids.configNote.textContent = "Configuration is locked while a command is executing.";
+      }
+
+      function setReady(title, message) {
+        state.activeCommand = null;
+        ids.statusBanner.className = "status-banner status-banner--success";
+        ids.statusTitle.textContent = title;
+        ids.statusMessage.textContent = message;
+        ids.statusChip.textContent = "Ready";
+        ids.statusChip.className = "status-chip status-chip--ready";
+        ids.queuePill.textContent = "No Pending Command";
+        ids.queuePill.className = "header-pill header-pill--idle";
+        ids.stopButton.disabled = !state.running;
+
+        document.querySelectorAll("#cfg-steps, #cfg-gear, #cfg-vzero").forEach((el) => {
+          el.disabled = false;
+        });
+        ids.configNote.textContent =
+          "Configuration edits are enabled. In production, these values should be committed through the shared communication layer.";
+      }
+
+      function render() {
+        ids.mech.textContent = state.mechanicalAngleDeg.toFixed(2);
+        ids.virt.textContent = state.virtualAngleDeg.toFixed(2);
+        ids.speed.textContent = state.speedDegPerSec.toFixed(2);
+        ids.dir.textContent = state.direction;
+        ids.steps.textContent = state.steps.toLocaleString();
+        ids.motorState.textContent = state.running ? "RUNNING" : "IDLE";
+        ids.motorState.className = state.running ? "text-accent" : "text-muted";
+        ids.motorPill.textContent = state.running ? "Motor Running" : "Motor Idle";
+        ids.motorPill.className = state.running ? "header-pill header-pill--motion" : "header-pill header-pill--idle";
+        ids.stopButton.disabled = !(state.running || state.activeCommand);
+      }
+
+      function bindPair(sliderId, inputId, labelId) {
+        const slider = document.getElementById(sliderId);
+        const input = document.getElementById(inputId);
+        const label = document.getElementById(labelId);
+
+        function sync(value) {
+          slider.value = value;
+          input.value = value;
+          label.textContent = Number(value).toFixed(2);
+        }
+
+        slider.addEventListener("input", () => sync(slider.value));
+        input.addEventListener("input", () => sync(input.value));
+      }
+
+      bindPair("abs-angle", "abs-angle-input", "abs-angle-label");
+      bindPair("abs-speed", "abs-speed-input", "abs-speed-label");
+      bindPair("rel-angle", "rel-angle-input", "rel-angle-label");
+      bindPair("rel-speed", "rel-speed-input", "rel-speed-label");
+
+      document.querySelectorAll("[data-dir]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.absoluteDirection = button.dataset.dir;
+          document.querySelectorAll("[data-dir]").forEach((node) => node.classList.remove("segmented__button--active"));
+          button.classList.add("segmented__button--active");
+        });
+      });
+
+      document.getElementById("cfg-vzero").addEventListener("input", () => {
+        const offset = Number(document.getElementById("cfg-vzero").value);
+        state.virtualAngleDeg = normalizeAngle(state.mechanicalAngleDeg + offset);
+        render();
+      });
+
+      document.getElementById("btn-abs").addEventListener("click", () => {
+        if (state.activeCommand) return;
+        setBusy("Rotating to absolute angle");
+        setTimeout(() => {
+          state.mechanicalAngleDeg = Number(document.getElementById("abs-angle-input").value);
+          state.speedDegPerSec = Number(document.getElementById("abs-speed-input").value);
+          state.direction = state.absoluteDirection === "NULL" ? "NONE" : state.absoluteDirection;
+          state.virtualAngleDeg = normalizeAngle(
+            state.mechanicalAngleDeg + Number(document.getElementById("cfg-vzero").value),
+          );
+          state.steps += 240;
+          state.running = true;
+          render();
+          setReady("Command Accepted", "Rotating to absolute angle completed in preview mode.");
+        }, 850);
+      });
+
+      document.getElementById("btn-rel").addEventListener("click", () => {
+        if (state.activeCommand) return;
+        setBusy("Applying relative move");
+        setTimeout(() => {
+          const delta = Number(document.getElementById("rel-angle-input").value);
+          state.mechanicalAngleDeg = normalizeAngle(state.mechanicalAngleDeg + delta);
+          state.virtualAngleDeg = normalizeAngle(
+            state.mechanicalAngleDeg + Number(document.getElementById("cfg-vzero").value),
+          );
+          state.speedDegPerSec = Number(document.getElementById("rel-speed-input").value);
+          state.direction = delta >= 0 ? "CW" : "CCW";
+          state.steps += Math.round(Math.abs(delta) * 14);
+          state.running = true;
+          render();
+          setReady("Command Accepted", "Applying relative move completed in preview mode.");
+        }, 850);
+      });
+
+      document.getElementById("btn-home").addEventListener("click", () => {
+        if (state.activeCommand) return;
+        setBusy("Homing to mechanical zero");
+        setTimeout(() => {
+          state.mechanicalAngleDeg = 0;
+          state.virtualAngleDeg = normalizeAngle(Number(document.getElementById("cfg-vzero").value));
+          state.speedDegPerSec = 0;
+          state.direction = "NONE";
+          state.steps = 0;
+          state.running = false;
+          render();
+          setReady("Command Accepted", "Homing to mechanical zero completed in preview mode.");
+        }, 850);
+      });
+
+      document.getElementById("btn-vzero").addEventListener("click", () => {
+        if (state.activeCommand) return;
+        setBusy("Moving to virtual zero");
+        setTimeout(() => {
+          state.virtualAngleDeg = 0;
+          state.running = true;
+          state.speedDegPerSec = Math.max(state.speedDegPerSec, 1);
+          state.direction = state.direction === "NONE" ? "CW" : state.direction;
+          state.steps += 90;
+          render();
+          setReady("Command Accepted", "Moving to virtual zero completed in preview mode.");
+        }, 850);
+      });
+
+      document.getElementById("btn-stop").addEventListener("click", () => {
+        setBusy("Stopping motion");
+        setTimeout(() => {
+          state.running = false;
+          state.speedDegPerSec = 0;
+          state.direction = "NONE";
+          render();
+          setReady("Command Accepted", "Stopping motion completed in preview mode.");
+        }, 250);
+      });
+
+      setInterval(() => {
+        if (!state.running) return;
+        const step = state.direction === "CCW" ? -0.35 : 0.35;
+        state.mechanicalAngleDeg = normalizeAngle(state.mechanicalAngleDeg + step);
+        state.virtualAngleDeg = normalizeAngle(state.virtualAngleDeg + step);
+        state.steps += Math.max(1, Math.round(state.speedDegPerSec * 3));
+        render();
+      }, 250);
+
+      render();
+    </script>
+  </body>
+</html>
