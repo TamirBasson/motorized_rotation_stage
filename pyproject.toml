@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "motorized-rotation-stage-controller"
+version = "0.1.0"
+description = "PC communication layer for the Motorized Rotation Stage Controller"
+requires-python = ">=3.11"
+dependencies = [
+    "pyserial",
+]
+
+[tool.setuptools.packages.find]
+include = ["pc_app*"]

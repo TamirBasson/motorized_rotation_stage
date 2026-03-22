@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+from typing import Callable
+
+from pc_app.comm import (
+    AckMessage,
+    CommunicationManager,
+    TelemetryState,
+    TelemetrySubscription,
+    build_constant_rotate_command,
+    build_rotate_absolute_command,
+    build_rotate_home_command,
+    build_rotate_relative_command,
+    build_rotate_virtual_zero_command,
+    build_set_telemetry_rate_command,
+    build_stop_command,
+)
+
+
+class RotationStageAPI:
+    """High-level Python API that routes all communication through the manager."""
+
+    def __init__(self, communication_manager: CommunicationManager) -> None:
+        self._communication_manager = communication_manager
+
+    @classmethod
+    def from_serial_port(
+        cls,
+        port: str,
+        baudrate: int = 115200,
+        *,
+        read_timeout: float = 0.1,
+        write_timeout: float = 1.0,
+    ) -> RotationStageAPI:
+        manager = CommunicationManager(
+            port=port,
+            baudrate=baudrate,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+        )
+        return cls(manager)
+
+    @property
+    def communication_manager(self) -> CommunicationManager:
+        return self._communication_manager
+
+    def start(self) -> None:
+        self._communication_manager.start()
+
+    def stop(self) -> None:
+        self._communication_manager.stop()
+
+    def rotate_absolute(
+        self,
+        angle_deg: float,
+        virt_zero_offset_deg: float,
+        speed_deg_per_sec: float,
+        direction: str,
+        *,
+        timeout: float = 1.0,
+    ) -> AckMessage:
+        return self._communication_manager.send_command(
+            build_rotate_absolute_command(
+                angle_deg=angle_deg,
+                virt_zero_offset_deg=virt_zero_offset_deg,
+                speed_deg_per_sec=speed_deg_per_sec,
+                direction=direction,
+            ),
+            timeout=timeout,
+        )
+
+    def constant_rotate(self, speed_deg_per_sec: float, direction: str, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(
+            build_constant_rotate_command(speed_deg_per_sec=speed_deg_per_sec, direction=direction),
+            timeout=timeout,
+        )
+
+    def rotate_relative(self, delta_angle_deg: float, speed_deg_per_sec: float, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(
+            build_rotate_relative_command(delta_angle_deg=delta_angle_deg, speed_deg_per_sec=speed_deg_per_sec),
+            timeout=timeout,
+        )
+
+    def rotate_mechanical_zero(self, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(build_rotate_home_command(), timeout=timeout)
+
+    def rotate_virtual_zero(self, virt_zero_offset_deg: float, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(
+            build_rotate_virtual_zero_command(virt_zero_offset_deg=virt_zero_offset_deg),
+            timeout=timeout,
+        )
+
+    def stop_rotation(self, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(build_stop_command(), timeout=timeout)
+
+    def set_telemetry_rate(self, rate_hz: int, *, timeout: float = 1.0) -> AckMessage:
+        return self._communication_manager.send_command(
+            build_set_telemetry_rate_command(rate_hz=rate_hz),
+            timeout=timeout,
+        )
+
+    def get_latest_telemetry(self) -> TelemetryState | None:
+        return self._communication_manager.get_latest_telemetry()
+
+    def subscribe_telemetry(
+        self,
+        callback: Callable[[TelemetryState], None],
+        *,
+        replay_latest: bool = True,
+    ) -> TelemetrySubscription:
+        return self._communication_manager.subscribe_telemetry(callback, replay_latest=replay_latest)
