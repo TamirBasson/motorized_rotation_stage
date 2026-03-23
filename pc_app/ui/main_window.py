@@ -6,7 +6,7 @@ from tkinter import ttk
 
 from pc_app.ui.control_panel import ControlPanel
 from pc_app.ui.controller_interface import StageController
-from pc_app.ui.reference_safety_panel import ReferenceSafetyPanel
+from pc_app.ui.system_parameters_panel import SystemParametersPanel
 from pc_app.ui.telemetry_view import TelemetryView
 from pc_app.ui.theme import apply_dark_theme
 
@@ -37,7 +37,6 @@ class MainWindow(tk.Tk):
 
         self._build_header(container)
         self._build_content(container)
-        self._build_status_bar(container)
 
         container.columnconfigure(0, weight=1)
         container.rowconfigure(1, weight=1)
@@ -133,20 +132,22 @@ class MainWindow(tk.Tk):
             justify="left",
         ).grid(row=1, column=0, sticky="nw", pady=(6, 0))
 
-        self._reference_panel = ReferenceSafetyPanel(bottom_row, controller=self._controller, status_callback=self.set_status)
-        self._reference_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        self._params_panel = SystemParametersPanel(bottom_row)
+        self._params_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        self._build_status_bar(left)
 
         self._control_panel = ControlPanel(
             right,
             controller=self._controller,
             status_callback=self.set_status,
-            virtual_zero_offset_provider=self._reference_panel.get_virtual_zero_offset,
+            virtual_zero_offset_provider=self._params_panel.get_virtual_zero_offset,
         )
         self._control_panel.grid(row=0, column=0, sticky="nsew")
 
-    def _build_status_bar(self, container: ttk.Frame) -> None:
-        self._status_frame = ttk.Frame(container, padding=10, style="Status.TFrame")
-        self._status_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+    def _build_status_bar(self, parent: ttk.Frame) -> None:
+        self._status_frame = ttk.Frame(parent, padding=10, style="Status.TFrame")
+        self._status_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         self._status_frame.columnconfigure(1, weight=1)
         self._status_indicator = ttk.Label(self._status_frame, text="READY", style="Success.TLabel")
         self._status_indicator.grid(row=0, column=0, sticky="w", padx=(0, 10))

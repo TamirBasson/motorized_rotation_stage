@@ -75,6 +75,23 @@ class ControlPanel(ttk.Frame):
             pady=(4, 0),
         )
 
+        actions = ttk.Frame(self, style="App.TFrame")
+        actions.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        actions.columnconfigure((0, 1), weight=1)
+
+        ttk.Button(
+            actions, text="Rotate To Virtual Zero", style="Primary.TButton",
+            command=self._on_rotate_virtual_zero,
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        ttk.Button(
+            actions, text="Rotate To Mechanical Zero", style="Primary.TButton",
+            command=self._on_rotate_mechanical_zero,
+        ).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        ttk.Button(
+            actions, text="Stop", style="Danger.TButton",
+            command=self._on_stop,
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
         self.columnconfigure(0, weight=1)
 
     def _create_section(self, parent: ttk.Frame, title: str) -> ttk.Frame:
@@ -140,3 +157,16 @@ class ControlPanel(ttk.Frame):
                 speed_deg_per_sec=float(self._rel_speed.get()),
             )
         )
+
+    def _on_rotate_virtual_zero(self) -> None:
+        self._run_action(
+            lambda: self._controller.rotate_virtual_zero(
+                virt_zero_offset_deg=self._virtual_zero_offset_provider(),
+            )
+        )
+
+    def _on_rotate_mechanical_zero(self) -> None:
+        self._run_action(self._controller.rotate_mechanical_zero)
+
+    def _on_stop(self) -> None:
+        self._run_action(self._controller.stop_rotation)
