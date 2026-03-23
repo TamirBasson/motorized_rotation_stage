@@ -16,14 +16,17 @@ from pc_app.comm.protocol import (
     build_stop_command,
     parse_message,
 )
+from pc_app.comm.port_detection import auto_detect_controller_port, list_serial_ports
 from pc_app.comm.telemetry_bus import TelemetryBus, TelemetrySubscription
 
 __all__ = [
     "AckMessage",
+    "auto_detect_controller_port",
     "CommunicationError",
     "CommunicationManager",
     "DeviceErrorResponse",
     "ErrMessage",
+    "list_serial_ports",
     "MotionDirection",
     "ParsedInboundMessage",
     "ProtocolError",

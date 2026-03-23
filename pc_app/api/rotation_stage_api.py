@@ -7,6 +7,7 @@ from pc_app.comm import (
     CommunicationManager,
     TelemetryState,
     TelemetrySubscription,
+    auto_detect_controller_port,
     build_constant_rotate_command,
     build_rotate_absolute_command,
     build_rotate_home_command,
@@ -22,6 +23,7 @@ class RotationStageAPI:
 
     def __init__(self, communication_manager: CommunicationManager) -> None:
         self._communication_manager = communication_manager
+        self._virtual_zero_offset_deg: float | None = None
 
     @classmethod
     def from_serial_port(
@@ -39,6 +41,21 @@ class RotationStageAPI:
             write_timeout=write_timeout,
         )
         return cls(manager)
+
+    @classmethod
+    def from_auto_detected_port(
+        cls,
+        baudrate: int = 115200,
+        *,
+        read_timeout: float = 0.1,
+        write_timeout: float = 1.0,
+    ) -> RotationStageAPI:
+        return cls.from_serial_port(
+            port=auto_detect_controller_port(),
+            baudrate=baudrate,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+        )
 
     @property
     def communication_manager(self) -> CommunicationManager:
@@ -59,6 +76,7 @@ class RotationStageAPI:
         *,
         timeout: float = 1.0,
     ) -> AckMessage:
+        self._virtual_zero_offset_deg = virt_zero_offset_deg
         return self._communication_manager.send_command(
             build_rotate_absolute_command(
                 angle_deg=angle_deg,
@@ -85,6 +103,7 @@ class RotationStageAPI:
         return self._communication_manager.send_command(build_rotate_home_command(), timeout=timeout)
 
     def rotate_virtual_zero(self, virt_zero_offset_deg: float, *, timeout: float = 1.0) -> AckMessage:
+        self._virtual_zero_offset_deg = virt_zero_offset_deg
         return self._communication_manager.send_command(
             build_rotate_virtual_zero_command(virt_zero_offset_deg=virt_zero_offset_deg),
             timeout=timeout,
@@ -109,3 +128,6 @@ class RotationStageAPI:
         replay_latest: bool = True,
     ) -> TelemetrySubscription:
         return self._communication_manager.subscribe_telemetry(callback, replay_latest=replay_latest)
+
+    def get_virtual_zero_offset_deg(self) -> float | None:
+        return self._virtual_zero_offset_deg

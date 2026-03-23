@@ -1,5 +1,7 @@
 # Motorized Rotation Stage Controller
 
+![Motion Control Dashboard](assets/dashboard.png)
+
 ## Overview
 
 Motorized Rotation Stage Controller is a combined embedded and PC software project for driving a stepper-based rotation stage from a computer over USB serial.
@@ -102,27 +104,59 @@ This starts the local preview controller and UI so engineers can inspect the cur
 python -m pc_app.ui.preview_app
 ```
 
-### 4. Use the hardware communication layer from Python
+### 4. Launch the real UI with hardware
 
-There is not yet a dedicated CLI launcher for the real device, but the communication stack can already be activated from a Python session.
+The real dashboard UI can now connect directly to the Arduino through the shared `CommunicationManager`.
+
+Auto-detect port:
 
 ```powershell
-python
+python -m pc_app.ui.hardware_app
 ```
 
-```python
-from pc_app.api.rotation_stage_api import RotationStageAPI
+Explicit port:
 
-api = RotationStageAPI.from_serial_port("COM3")
-api.start()
-
-api.set_telemetry_rate(2)
-print(api.get_latest_telemetry())
-
-api.stop()
+```powershell
+python -m pc_app.ui.hardware_app COM3
 ```
 
-Replace `COM3` with the actual Arduino serial port on your machine.
+The UI does not open serial directly. It uses `RotationStageAPI`, which routes all communication through the single shared `CommunicationManager`.
+
+### 5. Run the API example with hardware
+
+The repository also includes a Python example script that connects to the real controller, subscribes to telemetry, and demonstrates:
+
+- absolute move
+- relative move
+- continuous rotation
+- stop
+
+Auto-detect port:
+
+```powershell
+python example_api_usage.py
+```
+
+Explicit port:
+
+```powershell
+python example_api_usage.py COM3
+```
+
+Optional arguments:
+
+```powershell
+python example_api_usage.py COM3 --baudrate 115200 --telemetry-rate 5
+```
+
+What the API example does:
+
+- starts `RotationStageAPI`
+- subscribes to telemetry and prints live updates
+- sends motion commands through the shared `CommunicationManager`
+- prints the latest telemetry snapshot before disconnecting
+
+Replace `COM3` with the actual Arduino serial port on your machine when you do not use auto-detection.
 
 ## Command Model
 

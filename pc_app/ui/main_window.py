@@ -25,7 +25,7 @@ class MainWindow(tk.Tk):
 
         self._controller = controller
         self._status_title = tk.StringVar(value="System Ready")
-        self._status_message = tk.StringVar(value="Preview UI is active. Use the command panel to simulate motion.")
+        self._status_message = tk.StringVar(value="Communication manager is active. Use the command panel to control the stage.")
         self._status_tone = tk.StringVar(value="success")
         self._connection_state = tk.StringVar(value="Controller Online")
         self._motion_state = tk.StringVar(value="Motor Idle")
