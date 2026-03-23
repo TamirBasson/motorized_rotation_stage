@@ -19,7 +19,7 @@ class PreviewController:
             mechanical_angle_deg=123.45,
             running=False,
             speed_deg_per_sec=0.0,
-            direction=MotionDirection.NONE,
+            direction=MotionDirection.CW,
             steps=9876,
         )
         self._thread = threading.Thread(target=self._simulation_loop, daemon=True)
@@ -82,7 +82,7 @@ class PreviewController:
                 mechanical_angle_deg=0.0,
                 running=False,
                 speed_deg_per_sec=0.0,
-                direction=MotionDirection.NONE,
+                direction=MotionDirection.CW,
                 steps=0,
             )
         return AckMessage(command_type="ROT_HOME", parameters=())
@@ -96,7 +96,7 @@ class PreviewController:
                 mechanical_angle_deg=target_mechanical_deg,
                 running=True,
                 speed_deg_per_sec=max(self._telemetry.speed_deg_per_sec, 1.0),
-                direction=self._telemetry.direction if self._telemetry.direction != MotionDirection.NONE else MotionDirection.CW,
+                direction=self._telemetry.direction,
                 steps=self._telemetry.steps + 100,
             )
         return AckMessage(command_type="ROT_VZERO", parameters=(f"{virt_zero_offset_deg:.2f}",))
@@ -108,7 +108,7 @@ class PreviewController:
                 mechanical_angle_deg=self._telemetry.mechanical_angle_deg,
                 running=False,
                 speed_deg_per_sec=0.0,
-                direction=MotionDirection.NONE,
+                direction=MotionDirection.CW,
                 steps=self._telemetry.steps,
             )
         return AckMessage(command_type="STOP", parameters=())

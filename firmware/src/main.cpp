@@ -9,38 +9,38 @@
 // Pin definitions and constants
 // ================================
 
-constexpr uint32_t kSerialBaud = 115200UL;
+constexpr uint32_t serialBaud = 115200UL;
 
-constexpr uint8_t kStepPin = 9;   // FastAccelStepper uses Nano timer-backed step pins.
-constexpr uint8_t kDirPin = 5;
-constexpr uint8_t kEnablePin = 6;
-constexpr uint8_t kHomePin = 7;
+constexpr uint8_t stepPin = 9;   // FastAccelStepper uses Nano timer-backed step pins.
+constexpr uint8_t dirPin = 5;
+constexpr uint8_t enablePin = 6;
+constexpr uint8_t homePin = 7;
 
-constexpr bool kDirPinHighCountsUp = true;      // Positive steps = CW in protocol space.
-constexpr bool kEnablePinIsActiveLow = true;
-constexpr bool kHomeInputIsActiveLow = true;
+constexpr bool dirPinHighCountsUp = true;      // Positive steps = CW in protocol space.
+constexpr bool enablePinIsActiveLow = true;
+constexpr bool homeInputIsActiveLow = true;
 
-constexpr size_t kSerialBufferLength = 96;
-constexpr uint8_t kMaxCsvFields = 8;
+constexpr size_t serialBufferLength = 96;
+constexpr uint8_t maxCsvFields = 8;
 
-constexpr float kMinSpeedDegPerSec = 0.1f;
-constexpr float kMaxSpeedDegPerSec = 20.0f;
-constexpr float kMinAbsoluteAngleDeg = 0.0f;
-constexpr float kMaxAbsoluteAngleDeg = 360.0f;
-constexpr float kMinRelativeAngleDeg = -360.0f;
-constexpr float kMaxRelativeAngleDeg = 360.0f;
-constexpr float kMinVirtualZeroOffsetDeg = -180.0f;
-constexpr float kMaxVirtualZeroOffsetDeg = 180.0f;
+constexpr float minSpeedDegPerSec = 0.1f;
+constexpr float maxSpeedDegPerSec = 20.0f;
+constexpr float minAbsoluteAngleDeg = 0.0f;
+constexpr float maxAbsoluteAngleDeg = 360.0f;
+constexpr float minRelativeAngleDeg = -360.0f;
+constexpr float maxRelativeAngleDeg = 360.0f;
+constexpr float minVirtualZeroOffsetDeg = -180.0f;
+constexpr float maxVirtualZeroOffsetDeg = 180.0f;
 
-constexpr float kMotorStepsPerRevolution = 3200.0f;  // Effective motor steps, including microstepping.
-constexpr float kGearRatio = 3.0f;
-constexpr float kStageStepsPerRevolution = kMotorStepsPerRevolution * kGearRatio;
+constexpr float motorStepsPerRevolution = 3200.0f;  // Effective motor steps, including microstepping.
+constexpr float gearRatio = 180.0f;
+constexpr float stageStepsPerRevolution = motorStepsPerRevolution * gearRatio;
 
-constexpr float kDefaultAccelerationDegPerSec2 = 90.0f;
-constexpr float kDefaultSeekSpeedDegPerSec = 5.0f;
-constexpr uint32_t kMinAccelerationStepsPerSec2 = 400UL;
-constexpr uint16_t kStepperEnableDelayUs = 50U;
-constexpr uint16_t kStepperDisableDelayMs = 20U;
+constexpr float defaultAccelerationDegPerSec2 = 90.0f;
+constexpr float defaultSeekSpeedDegPerSec = 5.0f;
+constexpr uint32_t minAccelerationStepsPerSec2 = 400UL;
+constexpr uint16_t stepperEnableDelayUs = 50U;
+constexpr uint16_t stepperDisableDelayMs = 20U;
 
 // ================================
 // Enums and structs
@@ -56,11 +56,7 @@ enum class ControllerState : uint8_t {
   ERROR
 };
 
-enum class MotionDirection : uint8_t {
-  NONE,
-  CW,
-  CCW
-};
+enum class MotionDirection : uint8_t { CW, CCW };
 
 struct Config {
   float virtualZeroOffsetDeg = 0.0f;
@@ -68,7 +64,8 @@ struct Config {
 
 struct RuntimeState {
   ControllerState state = ControllerState::IDLE;
-  MotionDirection direction = MotionDirection::NONE;
+  MotionDirection direction = MotionDirection::CW;
+  MotionDirection lastTelemetryDirection = MotionDirection::CW;
   float commandedSpeedDegPerSec = 0.0f;
   int32_t targetPositionSteps = 0;
   int32_t homeSearchStartSteps = 0;
@@ -83,7 +80,7 @@ struct RuntimeState {
 Config g_config;
 RuntimeState g_runtime;
 
-char g_rxBuffer[kSerialBufferLength];
+char g_rxBuffer[serialBufferLength];
 size_t g_rxLength = 0;
 bool g_rxOverflow = false;
 
@@ -130,15 +127,15 @@ int32_t roundToInt32(float value) {
 }
 
 int32_t degreesToSteps(float angleDeg) {
-  return roundToInt32((angleDeg * kStageStepsPerRevolution) / 360.0f);
+  return roundToInt32((angleDeg * stageStepsPerRevolution) / 360.0f);
 }
 
 float stepsToDegrees(int32_t steps) {
-  return (static_cast<float>(steps) * 360.0f) / kStageStepsPerRevolution;
+  return (static_cast<float>(steps) * 360.0f) / stageStepsPerRevolution;
 }
 
 float degreesPerSecondToStepHz(float speedDegPerSec) {
-  return (speedDegPerSec * kStageStepsPerRevolution) / 360.0f;
+  return (speedDegPerSec * stageStepsPerRevolution) / 360.0f;
 }
 
 bool valueInRange(float value, float minValue, float maxValue) {
@@ -146,8 +143,8 @@ bool valueInRange(float value, float minValue, float maxValue) {
 }
 
 bool homeSensorActive() {
-  const bool rawState = digitalRead(kHomePin) == HIGH;
-  return kHomeInputIsActiveLow ? !rawState : rawState;
+  const bool rawState = digitalRead(homePin) == HIGH;
+  return homeInputIsActiveLow ? !rawState : rawState;
 }
 
 const char *directionToText(MotionDirection direction) {
@@ -156,9 +153,8 @@ const char *directionToText(MotionDirection direction) {
       return "CW";
     case MotionDirection::CCW:
       return "CCW";
-    default:
-      return "NONE";
   }
+  return "CW";
 }
 
 float getMechanicalAngleDeg() {
@@ -269,7 +265,8 @@ void sendAckTelemetry(int32_t rate) {
 void sendTelemetry() {
   const bool isRunning = (g_stepper != nullptr) && g_stepper->isRunning();
   const float reportedSpeed = isRunning ? g_runtime.commandedSpeedDegPerSec : 0.0f;
-  const MotionDirection reportedDirection = isRunning ? g_runtime.direction : MotionDirection::NONE;
+  const MotionDirection reportedDirection =
+      isRunning ? g_runtime.direction : g_runtime.lastTelemetryDirection;
   const int32_t steps = (g_stepper != nullptr) ? g_stepper->getCurrentPosition() : 0;
 
   Serial.print(F("TLM,"));
@@ -291,8 +288,20 @@ void sendTelemetry() {
 // ================================
 
 void clearMotionState(ControllerState nextState = ControllerState::IDLE) {
+  if (nextState == ControllerState::IDLE) {
+    const bool wasMoving =
+        (g_runtime.state == ControllerState::MOVING_ABSOLUTE) ||
+        (g_runtime.state == ControllerState::MOVING_RELATIVE) ||
+        (g_runtime.state == ControllerState::CONSTANT_ROTATE) ||
+        (g_runtime.state == ControllerState::HOMING_MECHANICAL_ZERO) ||
+        (g_runtime.state == ControllerState::MOVING_TO_VIRTUAL_ZERO);
+    if (wasMoving) {
+      g_runtime.lastTelemetryDirection = g_runtime.direction;
+    }
+  }
+
   g_runtime.state = nextState;
-  g_runtime.direction = MotionDirection::NONE;
+  g_runtime.direction = MotionDirection::CW;
   g_runtime.commandedSpeedDegPerSec = 0.0f;
   g_runtime.targetPositionSteps = (g_stepper != nullptr) ? g_stepper->getCurrentPosition() : 0;
   g_runtime.homeSearchStartSteps = g_runtime.targetPositionSteps;
@@ -320,9 +329,9 @@ void configureMotionProfile(float speedDegPerSec) {
     speedHz = 1UL;
   }
 
-  uint32_t accelHzPerSec = static_cast<uint32_t>(degreesPerSecondToStepHz(kDefaultAccelerationDegPerSec2) + 0.5f);
-  if (accelHzPerSec < kMinAccelerationStepsPerSec2) {
-    accelHzPerSec = kMinAccelerationStepsPerSec2;
+  uint32_t accelHzPerSec = static_cast<uint32_t>(degreesPerSecondToStepHz(defaultAccelerationDegPerSec2) + 0.5f);
+  if (accelHzPerSec < minAccelerationStepsPerSec2) {
+    accelHzPerSec = minAccelerationStepsPerSec2;
   }
 
   g_stepper->setSpeedInHz(speedHz);
@@ -338,20 +347,20 @@ bool startMoveByDelta(float deltaAngleDeg, float speedDegPerSec, ControllerState
 
   preemptCurrentMotion();
   const int32_t deltaSteps = degreesToSteps(deltaAngleDeg);
+  if (deltaSteps == 0) {
+    clearMotionState(ControllerState::IDLE);
+    return true;
+  }
+
   const int32_t currentSteps = g_stepper->getCurrentPosition();
   const int32_t targetSteps = currentSteps + deltaSteps;
   configureMotionProfile(speedDegPerSec);
 
   g_runtime.state = moveState;
-  g_runtime.direction = (deltaSteps > 0) ? MotionDirection::CW : (deltaSteps < 0) ? MotionDirection::CCW : MotionDirection::NONE;
+  g_runtime.direction = (deltaSteps > 0) ? MotionDirection::CW : MotionDirection::CCW;
   g_runtime.commandedSpeedDegPerSec = speedDegPerSec;
   g_runtime.targetPositionSteps = targetSteps;
   g_runtime.homeSearchStartSteps = currentSteps;
-
-  if (deltaSteps == 0) {
-    clearMotionState(ControllerState::IDLE);
-    return true;
-  }
 
   g_stepper->moveTo(targetSteps);
   return true;
@@ -372,9 +381,6 @@ bool startAbsoluteMove(float targetVirtualAngleDeg, float offsetDeg, float speed
     case MotionDirection::CCW:
       deltaDeg = counterClockwiseDeltaDeg(currentMechanicalDeg, targetMechanicalDeg);
       break;
-    default:
-      deltaDeg = shortestSignedDeltaDeg(currentMechanicalDeg, targetMechanicalDeg);
-      break;
   }
 
   return startMoveByDelta(deltaDeg, speedDegPerSec, ControllerState::MOVING_ABSOLUTE);
@@ -388,7 +394,7 @@ bool startRotateToVirtualZero(float offsetDeg) {
   const float targetMechanicalDeg = normalizeAngle360(g_config.virtualZeroOffsetDeg);
   const float deltaDeg = shortestSignedDeltaDeg(currentMechanicalDeg, targetMechanicalDeg);
 
-  return startMoveByDelta(deltaDeg, kDefaultSeekSpeedDegPerSec, ControllerState::MOVING_TO_VIRTUAL_ZERO);
+  return startMoveByDelta(deltaDeg, defaultSeekSpeedDegPerSec, ControllerState::MOVING_TO_VIRTUAL_ZERO);
 }
 
 bool startConstantRotate(float speedDegPerSec, MotionDirection direction) {
@@ -451,17 +457,13 @@ void stopNow() {
 // Command parsing and execution
 // ================================
 
-bool parseDirectionToken(const char *token, bool allowNull, MotionDirection &direction) {
+bool parseDirectionToken(const char *token, MotionDirection &direction) {
   if (strcmp(token, "CW") == 0) {
     direction = MotionDirection::CW;
     return true;
   }
   if (strcmp(token, "CCW") == 0) {
     direction = MotionDirection::CCW;
-    return true;
-  }
-  if (allowNull && (strcmp(token, "NULL") == 0)) {
-    direction = MotionDirection::NONE;
     return true;
   }
   return false;
@@ -476,17 +478,17 @@ void handleRotateAbsolute(char *fields[], uint8_t fieldCount) {
   float angleDeg = 0.0f;
   float offsetDeg = 0.0f;
   float speedDegPerSec = 0.0f;
-  MotionDirection direction = MotionDirection::NONE;
+  MotionDirection direction = MotionDirection::CW;
 
   if (!parseFloatStrict(fields[2], angleDeg) || !parseFloatStrict(fields[3], offsetDeg) ||
-      !parseFloatStrict(fields[4], speedDegPerSec) || !parseDirectionToken(fields[5], true, direction)) {
+      !parseFloatStrict(fields[4], speedDegPerSec) || !parseDirectionToken(fields[5], direction)) {
     sendErr("BAD_FORMAT", "ROT_ABS");
     return;
   }
 
-  if (!valueInRange(angleDeg, kMinAbsoluteAngleDeg, kMaxAbsoluteAngleDeg) ||
-      !valueInRange(offsetDeg, kMinVirtualZeroOffsetDeg, kMaxVirtualZeroOffsetDeg) ||
-      !valueInRange(speedDegPerSec, kMinSpeedDegPerSec, kMaxSpeedDegPerSec)) {
+  if (!valueInRange(angleDeg, minAbsoluteAngleDeg, maxAbsoluteAngleDeg) ||
+      !valueInRange(offsetDeg, minVirtualZeroOffsetDeg, maxVirtualZeroOffsetDeg) ||
+      !valueInRange(speedDegPerSec, minSpeedDegPerSec, maxSpeedDegPerSec)) {
     sendErr("PARAM_OUT_OF_RANGE", "ROT_ABS");
     return;
   }
@@ -503,14 +505,14 @@ void handleRotateConstant(char *fields[], uint8_t fieldCount) {
   }
 
   float speedDegPerSec = 0.0f;
-  MotionDirection direction = MotionDirection::NONE;
+  MotionDirection direction = MotionDirection::CW;
 
-  if (!parseFloatStrict(fields[2], speedDegPerSec) || !parseDirectionToken(fields[3], false, direction)) {
+  if (!parseFloatStrict(fields[2], speedDegPerSec) || !parseDirectionToken(fields[3], direction)) {
     sendErr("BAD_FORMAT", "ROT_CONST");
     return;
   }
 
-  if (!valueInRange(speedDegPerSec, kMinSpeedDegPerSec, kMaxSpeedDegPerSec)) {
+  if (!valueInRange(speedDegPerSec, minSpeedDegPerSec, maxSpeedDegPerSec)) {
     sendErr("PARAM_OUT_OF_RANGE", "ROT_CONST");
     return;
   }
@@ -534,8 +536,8 @@ void handleRotateRelative(char *fields[], uint8_t fieldCount) {
     return;
   }
 
-  if (!valueInRange(deltaDeg, kMinRelativeAngleDeg, kMaxRelativeAngleDeg) ||
-      !valueInRange(speedDegPerSec, kMinSpeedDegPerSec, kMaxSpeedDegPerSec)) {
+  if (!valueInRange(deltaDeg, minRelativeAngleDeg, maxRelativeAngleDeg) ||
+      !valueInRange(speedDegPerSec, minSpeedDegPerSec, maxSpeedDegPerSec)) {
     sendErr("PARAM_OUT_OF_RANGE", "ROT_REL");
     return;
   }
@@ -551,7 +553,7 @@ void handleRotateHome(char *fields[], uint8_t fieldCount) {
     return;
   }
 
-  if (startMechanicalHoming(kDefaultSeekSpeedDegPerSec)) {
+  if (startMechanicalHoming(defaultSeekSpeedDegPerSec)) {
     sendAckSimple("ROT_HOME");
   }
 }
@@ -568,7 +570,7 @@ void handleRotateVirtualZero(char *fields[], uint8_t fieldCount) {
     return;
   }
 
-  if (!valueInRange(offsetDeg, kMinVirtualZeroOffsetDeg, kMaxVirtualZeroOffsetDeg)) {
+  if (!valueInRange(offsetDeg, minVirtualZeroOffsetDeg, maxVirtualZeroOffsetDeg)) {
     sendErr("PARAM_OUT_OF_RANGE", "ROT_VZERO");
     return;
   }
@@ -621,12 +623,12 @@ void processCommandLine(const char *line) {
     return;
   }
 
-  char workingCopy[kSerialBufferLength];
+  char workingCopy[serialBufferLength];
   strncpy(workingCopy, line, sizeof(workingCopy) - 1);
   workingCopy[sizeof(workingCopy) - 1] = '\0';
 
-  char *fields[kMaxCsvFields] = {nullptr};
-  const uint8_t fieldCount = splitCsv(workingCopy, fields, kMaxCsvFields);
+  char *fields[maxCsvFields] = {nullptr};
+  const uint8_t fieldCount = splitCsv(workingCopy, fields, maxCsvFields);
   if (fieldCount < 2) {
     sendErr("BAD_FORMAT", "MESSAGE");
     return;
@@ -698,7 +700,7 @@ void serviceSerialReceive() {
       continue;
     }
 
-    if (g_rxLength < (kSerialBufferLength - 1)) {
+    if (g_rxLength < (serialBufferLength - 1)) {
       g_rxBuffer[g_rxLength++] = incoming;
     } else {
       g_rxLength = 0;
@@ -771,20 +773,20 @@ void serviceTelemetry() {
 // ================================
 
 void setup() {
-  pinMode(kHomePin, kHomeInputIsActiveLow ? INPUT_PULLUP : INPUT);
+  pinMode(homePin, homeInputIsActiveLow ? INPUT_PULLUP : INPUT);
 
-  Serial.begin(kSerialBaud);
+  Serial.begin(serialBaud);
 
   g_stepperEngine.init();
-  g_stepper = g_stepperEngine.stepperConnectToPin(kStepPin);
+  g_stepper = g_stepperEngine.stepperConnectToPin(stepPin);
 
   if (g_stepper != nullptr) {
-    g_stepper->setDirectionPin(kDirPin, kDirPinHighCountsUp);
-    g_stepper->setEnablePin(kEnablePin, kEnablePinIsActiveLow);
+    g_stepper->setDirectionPin(dirPin, dirPinHighCountsUp);
+    g_stepper->setEnablePin(enablePin, enablePinIsActiveLow);
     g_stepper->setAutoEnable(true);
-    g_stepper->setDelayToEnable(kStepperEnableDelayUs);
-    g_stepper->setDelayToDisable(kStepperDisableDelayMs);
-    configureMotionProfile(kDefaultSeekSpeedDegPerSec);
+    g_stepper->setDelayToEnable(stepperEnableDelayUs);
+    g_stepper->setDelayToDisable(stepperDisableDelayMs);
+    configureMotionProfile(defaultSeekSpeedDegPerSec);
 
     if (homeSensorActive()) {
       g_stepper->setCurrentPosition(0);

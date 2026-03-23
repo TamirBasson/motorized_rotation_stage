@@ -47,7 +47,7 @@ Example:
 `CMD,ROT_ABS,120.00,-15.00,5.0,CW`
 
 Notes:
-- direction may be `CW`, `CCW`, or `NULL`
+- direction must be `CW` or `CCW`
 
 ---
 
@@ -167,7 +167,7 @@ Field definitions:
 2. virtual angle in degrees
 3. running status: `0` or `1`
 4. current speed in deg/sec
-5. direction: `CW` / `CCW` / `NONE`
+5. direction: `CW` or `CCW` (when not running, repeats the last motion direction, default `CW`)
 6. current steps count
 
 Example:
@@ -181,7 +181,7 @@ Example:
 - angle: 0 to 360
 - virtual zero offset: -180 to +180
 - speed: 0.1 to 20
-- direction: `CW`, `CCW`, `NULL`
+- direction: `CW`, `CCW`
 
 ### Constant Rotate
 - speed: 0.1 to 20

@@ -8,8 +8,6 @@ from typing import TypeAlias
 class MotionDirection(str, Enum):
     CW = "CW"
     CCW = "CCW"
-    NONE = "NONE"
-    NULL = "NULL"
 
 
 @dataclass(frozen=True, slots=True)

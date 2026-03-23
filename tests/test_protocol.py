@@ -38,7 +38,7 @@ class ProtocolParserTests(unittest.TestCase):
 
     def test_reject_invalid_telemetry_direction(self) -> None:
         with self.assertRaises(ProtocolError):
-            parse_message("TLM,123.45,110.95,1,5.00,NULL,9876")
+            parse_message("TLM,123.45,110.95,1,5.00,SHORT,9876")
 
     def test_build_valid_commands(self) -> None:
         self.assertEqual(

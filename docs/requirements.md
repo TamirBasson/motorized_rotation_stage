@@ -29,12 +29,12 @@ Parameters:
 - angle: 0 to 360 deg
 - offset to virtual zero: -180 to +180 deg
 - speed: 0.1 to 20 deg/sec, step 0.1
-- direction: CW / CCW / NULL
+- direction: CW / CCW 
 
 Behavior:
 - rotate to target angle
 - target is calculated using the angle and virtual zero offset
-- if direction is NULL, use the shortest path
+- rotation path follows the commanded `CW` or `CCW` around the circle
 
 ---
 

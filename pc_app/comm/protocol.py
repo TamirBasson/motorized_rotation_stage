@@ -50,7 +50,7 @@ def build_rotate_absolute_command(
     _validate_range("angle_deg", angle_deg, 0.0, 360.0)
     _validate_range("virt_zero_offset_deg", virt_zero_offset_deg, -180.0, 180.0)
     _validate_range("speed_deg_per_sec", speed_deg_per_sec, 0.1, 20.0)
-    _validate_direction(direction, allowed={"CW", "CCW", "NULL"})
+    _validate_direction(direction, allowed={"CW", "CCW"})
     return ",".join(
         [
             "CMD",
@@ -153,9 +153,7 @@ def _parse_tlm_direction(raw_value: str) -> MotionDirection:
         return MotionDirection.CW
     if raw_value == MotionDirection.CCW.value:
         return MotionDirection.CCW
-    if raw_value == MotionDirection.NONE.value:
-        return MotionDirection.NONE
-    raise ProtocolError("TLM direction must be CW, CCW, or NONE")
+    raise ProtocolError("TLM direction must be CW or CCW")
 
 
 def _parse_float(value: str, field_name: str) -> float:

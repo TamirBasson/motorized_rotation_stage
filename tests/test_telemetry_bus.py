@@ -37,7 +37,7 @@ class TelemetryBusTests(unittest.TestCase):
             virtual_angle_deg=1.5,
             running=False,
             speed_deg_per_sec=0.0,
-            direction=MotionDirection.NONE,
+            direction=MotionDirection.CW,
             steps=0,
         )
         bus.publish(sample)
