@@ -11,7 +11,7 @@ class UiPreviewTests(unittest.TestCase):
         controller = PreviewController()
         try:
             before = controller.get_latest_telemetry()
-            controller.constant_rotate(2.0, "CW")
+            controller.rotate_absolute(120.0, -15.0, 5.0, "CW")
             controller.rotate_relative(10.0, 3.0)
             after = controller.get_latest_telemetry()
         finally:
@@ -20,6 +20,7 @@ class UiPreviewTests(unittest.TestCase):
         self.assertFalse(before.running)
         self.assertTrue(after.running)
         self.assertEqual(after.direction, MotionDirection.CW)
+        self.assertAlmostEqual(after.virtual_angle_deg, (after.mechanical_angle_deg - 15.0) % 360.0)
 
     def test_telemetry_view_renders_values(self) -> None:
         root = None
@@ -47,7 +48,7 @@ class UiPreviewTests(unittest.TestCase):
                 for child in descendants
                 if hasattr(child, "cget") and child.winfo_class() == "TLabel"
             ]
-            self.assertIn("Mechanical Angle (deg)", labels)
+            self.assertIn("Mechanical Degree", labels)
 
             rendered = [
                 child.cget("text")

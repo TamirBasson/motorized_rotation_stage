@@ -8,7 +8,7 @@ from pc_app.comm.models import TelemetryState
 
 class TelemetryView(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
-        super().__init__(master, padding=18, style="Panel.TFrame")
+        super().__init__(master, padding=12, style="Panel.TFrame")
         self._values: dict[str, tk.StringVar] = {
             "mechanical_angle_deg": tk.StringVar(value="--"),
             "virtual_angle_deg": tk.StringVar(value="--"),
@@ -25,18 +25,18 @@ class TelemetryView(ttk.Frame):
             self,
             text="Large engineering readouts for fast interpretation under lab conditions.",
             style="PanelSubtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(6, 16))
+        ).grid(row=1, column=0, sticky="w", pady=(4, 10))
 
         hero = ttk.Frame(self, style="Panel.TFrame")
         hero.grid(row=2, column=0, sticky="ew")
         hero.columnconfigure(0, weight=1)
         hero.columnconfigure(1, weight=1)
 
-        self._build_value_card(hero, 0, "Mechanical Angle (deg)", "mechanical_angle_deg", hero_value=True)
-        self._build_value_card(hero, 1, "Virtual Angle (deg)", "virtual_angle_deg", hero_value=True)
+        self._build_value_card(hero, 0, "Mechanical Degree", "mechanical_angle_deg", hero_value=True)
+        self._build_value_card(hero, 1, "Virtual Degree", "virtual_angle_deg", hero_value=True)
 
         metrics = ttk.Frame(self, style="Panel.TFrame")
-        metrics.grid(row=3, column=0, sticky="ew", pady=(14, 0))
+        metrics.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         metrics.columnconfigure((0, 1), weight=1)
 
         self._build_metric_card(metrics, 0, 0, "Running", "running")
@@ -47,20 +47,20 @@ class TelemetryView(ttk.Frame):
         self.columnconfigure(0, weight=1)
 
     def _build_value_card(self, parent: ttk.Frame, column: int, label_text: str, key: str, hero_value: bool = False) -> None:
-        card = ttk.Frame(parent, padding=18, style="Card.TFrame")
-        card.grid(row=0, column=column, sticky="nsew", padx=(0, 8) if column == 0 else (8, 0))
+        card = ttk.Frame(parent, padding=12, style="Card.TFrame")
+        card.grid(row=0, column=column, sticky="nsew", padx=(0, 6) if column == 0 else (6, 0))
         ttk.Label(card, text=label_text, style="ValueLabel.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             card,
             textvariable=self._values[key],
             style="HeroValue.TLabel" if hero_value else "MetricValue.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
 
     def _build_metric_card(self, parent: ttk.Frame, row: int, column: int, label_text: str, key: str) -> None:
-        card = ttk.Frame(parent, padding=16, style="Card.TFrame")
-        card.grid(row=row, column=column, sticky="nsew", padx=6, pady=6)
+        card = ttk.Frame(parent, padding=10, style="Card.TFrame")
+        card.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
         ttk.Label(card, text=label_text, style="ValueLabel.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(card, textvariable=self._values[key], style="MetricValue.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(card, textvariable=self._values[key], style="MetricValue.TLabel").grid(row=1, column=0, sticky="w", pady=(4, 0))
 
     def update_telemetry(self, telemetry: TelemetryState | None) -> None:
         if telemetry is None:

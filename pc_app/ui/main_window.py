@@ -1,23 +1,27 @@
 from __future__ import annotations
 
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 
 from pc_app.ui.control_panel import ControlPanel
 from pc_app.ui.controller_interface import StageController
+from pc_app.ui.reference_safety_panel import ReferenceSafetyPanel
 from pc_app.ui.telemetry_view import TelemetryView
 from pc_app.ui.theme import apply_dark_theme
 
 
 class MainWindow(tk.Tk):
-    REFRESH_INTERVAL_MS = 500
+    TELEMETRY_RATE_HZ = 5
+    REFRESH_INTERVAL_MS = int(1000 / TELEMETRY_RATE_HZ)
+    ICON_PATH = Path(__file__).resolve().parents[2] / "assets" / "SvE6bWoR_400x400.png"
 
     def __init__(self, controller: StageController) -> None:
         super().__init__()
         apply_dark_theme(self)
         self.title("Motorized Rotation Stage Controller")
-        self.geometry("1320x860")
-        self.minsize(1180, 760)
+        self.geometry("1320x820")
+        self.minsize(1180, 700)
 
         self._controller = controller
         self._status_title = tk.StringVar(value="System Ready")
@@ -26,8 +30,9 @@ class MainWindow(tk.Tk):
         self._connection_state = tk.StringVar(value="Controller Online")
         self._motion_state = tk.StringVar(value="Motor Idle")
         self._queue_state = tk.StringVar(value="No Pending Command")
+        self._header_icon: tk.PhotoImage | None = self._load_header_icon()
 
-        container = ttk.Frame(self, padding=20, style="App.TFrame")
+        container = ttk.Frame(self, padding=16, style="App.TFrame")
         container.pack(fill="both", expand=True)
 
         self._build_header(container)
@@ -37,6 +42,7 @@ class MainWindow(tk.Tk):
         container.columnconfigure(0, weight=1)
         container.rowconfigure(1, weight=1)
 
+        self._configure_fixed_telemetry_rate()
         self.after(self.REFRESH_INTERVAL_MS, self._refresh_telemetry)
 
     def set_status(self, title: str, message: str, tone: str = "success") -> None:
@@ -47,18 +53,23 @@ class MainWindow(tk.Tk):
 
     def _build_header(self, container: ttk.Frame) -> None:
         header = ttk.Frame(container, style="App.TFrame")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 18))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
         header.columnconfigure(0, weight=1)
         header.columnconfigure(1, weight=0)
 
         text_block = ttk.Frame(header, style="App.TFrame")
         text_block.grid(row=0, column=0, sticky="w")
-        ttk.Label(text_block, text="Lab Motion Dashboard", style="AppTitle.TLabel").grid(row=0, column=0, sticky="w")
+
+        title_row = ttk.Frame(text_block, style="App.TFrame")
+        title_row.grid(row=0, column=0, sticky="w")
+        if self._header_icon is not None:
+            ttk.Label(title_row, image=self._header_icon, style="AppSubtitle.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 14))
+        ttk.Label(title_row, text="Motion Control Dashboard", style="AppTitle.TLabel").grid(row=0, column=1, sticky="w")
         ttk.Label(
             text_block,
             text="Motorized Rotation Stage Controller with live telemetry and grouped operator controls.",
             style="AppSubtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        ).grid(row=1, column=0, sticky="w", pady=(3, 0))
 
         pill_block = ttk.Frame(header, style="App.TFrame")
         pill_block.grid(row=0, column=1, sticky="e")
@@ -78,8 +89,7 @@ class MainWindow(tk.Tk):
         content.rowconfigure(0, weight=1)
 
         left = ttk.Frame(content, style="App.TFrame")
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
-        left.rowconfigure(0, weight=1)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         left.columnconfigure(0, weight=1)
 
         right = ttk.Frame(content, style="App.TFrame")
@@ -88,30 +98,70 @@ class MainWindow(tk.Tk):
         right.columnconfigure(0, weight=1)
 
         self._telemetry_view = TelemetryView(left)
-        self._telemetry_view.grid(row=0, column=0, sticky="nsew")
+        self._telemetry_view.grid(row=0, column=0, sticky="new")
 
-        self._control_panel = ControlPanel(right, controller=self._controller, status_callback=self.set_status)
+        bottom_row = ttk.Frame(left, style="App.TFrame")
+        bottom_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        bottom_row.columnconfigure(0, weight=1)
+        bottom_row.columnconfigure(1, weight=1)
+
+        info = ttk.Frame(bottom_row, padding=10, style="Panel.TFrame")
+        info.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        info.columnconfigure(0, weight=1)
+        ttk.Label(info, text="Mechanical vs Virtual Degree", style="SectionTitle.TLabel").grid(
+            row=0,
+            column=0,
+            sticky="w",
+        )
+        explanation = (
+            "Mechanical Degree is the true physical angle "
+            "of the stage, derived from step count, "
+            "steps-per-revolution, and gear ratio. "
+            "It resets only via the hardware "
+            "mechanical-zero sensor.\n\n"
+            "Virtual Degree = Mechanical + Offset.\n"
+            "The offset is a user-defined constant that "
+            "shifts the reference frame without moving "
+            "the stage. Use it to align the display with "
+            "your experiment coordinate system."
+        )
+        ttk.Label(
+            info,
+            text=explanation,
+            style="PanelSubtitle.TLabel",
+            wraplength=320,
+            justify="left",
+        ).grid(row=1, column=0, sticky="nw", pady=(6, 0))
+
+        self._reference_panel = ReferenceSafetyPanel(bottom_row, controller=self._controller, status_callback=self.set_status)
+        self._reference_panel.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        self._control_panel = ControlPanel(
+            right,
+            controller=self._controller,
+            status_callback=self.set_status,
+            virtual_zero_offset_provider=self._reference_panel.get_virtual_zero_offset,
+        )
         self._control_panel.grid(row=0, column=0, sticky="nsew")
 
     def _build_status_bar(self, container: ttk.Frame) -> None:
-        self._status_frame = ttk.Frame(container, padding=16, style="Status.TFrame")
-        self._status_frame.grid(row=2, column=0, sticky="ew", pady=(18, 0))
-        self._status_frame.columnconfigure(0, weight=1)
+        self._status_frame = ttk.Frame(container, padding=10, style="Status.TFrame")
+        self._status_frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+        self._status_frame.columnconfigure(1, weight=1)
         self._status_indicator = ttk.Label(self._status_frame, text="READY", style="Success.TLabel")
-        self._status_indicator.grid(row=0, column=0, sticky="w")
+        self._status_indicator.grid(row=0, column=0, sticky="w", padx=(0, 10))
         ttk.Label(self._status_frame, textvariable=self._status_title, style="StatusTitle.TLabel").grid(
-            row=1,
-            column=0,
+            row=0,
+            column=1,
             sticky="w",
-            pady=(4, 0),
         )
         ttk.Label(
             self._status_frame,
             textvariable=self._status_message,
             style="StatusMessage.TLabel",
-            wraplength=1080,
+            wraplength=900,
             justify="left",
-        ).grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ).grid(row=1, column=1, sticky="w", pady=(2, 0))
         self._apply_status_tone()
 
     def _apply_status_tone(self) -> None:
@@ -122,6 +172,25 @@ class MainWindow(tk.Tk):
             self._status_indicator.configure(text="BUSY", style="Warning.TLabel")
         else:
             self._status_indicator.configure(text="READY", style="Success.TLabel")
+
+    def _configure_fixed_telemetry_rate(self) -> None:
+        try:
+            self._controller.set_telemetry_rate(self.TELEMETRY_RATE_HZ)
+        except Exception as exc:
+            self.set_status("Telemetry Configuration Failed", str(exc), "error")
+        else:
+            self.set_status(
+                "System Ready",
+                f"Telemetry is fixed at {self.TELEMETRY_RATE_HZ} Hz and managed automatically.",
+                "success",
+            )
+
+    def _load_header_icon(self) -> tk.PhotoImage | None:
+        try:
+            icon = tk.PhotoImage(file=str(self.ICON_PATH))
+        except tk.TclError:
+            return None
+        return icon.subsample(5, 5)
 
     def _refresh_telemetry(self) -> None:
         telemetry = self._controller.get_latest_telemetry()

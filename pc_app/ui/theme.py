@@ -38,7 +38,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         "AppTitle.TLabel",
         background=COLORS["bg"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 26),
+        font=("Segoe UI Semibold", 24),
     )
     style.configure(
         "AppSubtitle.TLabel",
@@ -50,62 +50,62 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         "PanelTitle.TLabel",
         background=COLORS["panel"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 14),
+        font=("Segoe UI Semibold", 13),
     )
     style.configure(
         "PanelSubtitle.TLabel",
         background=COLORS["panel"],
         foreground=COLORS["text_muted"],
-        font=("Segoe UI", 9),
+        font=("Segoe UI", 8),
     )
     style.configure(
         "SectionTitle.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 11),
+        font=("Segoe UI Semibold", 10),
     )
     style.configure(
         "FieldLabel.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text_soft"],
-        font=("Segoe UI", 9),
+        font=("Segoe UI", 8),
     )
     style.configure(
         "ValueLabel.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text_muted"],
-        font=("Segoe UI", 9),
+        font=("Segoe UI", 8),
     )
     style.configure(
         "HeroValue.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 24),
+        font=("Segoe UI Semibold", 20),
     )
     style.configure(
         "MetricValue.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 16),
+        font=("Segoe UI Semibold", 14),
     )
     style.configure(
         "StatusTitle.TLabel",
         background=COLORS["panel_alt"],
         foreground=COLORS["text"],
-        font=("Segoe UI Semibold", 12),
+        font=("Segoe UI Semibold", 11),
     )
     style.configure(
         "StatusMessage.TLabel",
         background=COLORS["panel_alt"],
         foreground=COLORS["text_soft"],
-        font=("Segoe UI", 10),
+        font=("Segoe UI", 9),
     )
     style.configure(
         "Pill.TLabel",
         background=COLORS["card"],
         foreground=COLORS["text_soft"],
-        font=("Segoe UI Semibold", 10),
-        padding=(14, 8),
+        font=("Segoe UI Semibold", 9),
+        padding=(10, 6),
         borderwidth=1,
         relief="solid",
     )
@@ -113,8 +113,8 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         "PillAccent.TLabel",
         background=COLORS["card"],
         foreground=COLORS["accent"],
-        font=("Segoe UI Semibold", 10),
-        padding=(14, 8),
+        font=("Segoe UI Semibold", 9),
+        padding=(10, 6),
         borderwidth=1,
         relief="solid",
     )
@@ -128,19 +128,19 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         "Success.TLabel",
         background=COLORS["panel_alt"],
         foreground=COLORS["success"],
-        font=("Segoe UI Semibold", 10),
+        font=("Segoe UI Semibold", 9),
     )
     style.configure(
         "Warning.TLabel",
         background=COLORS["panel_alt"],
         foreground=COLORS["warning"],
-        font=("Segoe UI Semibold", 10),
+        font=("Segoe UI Semibold", 9),
     )
     style.configure(
         "Error.TLabel",
         background=COLORS["panel_alt"],
         foreground=COLORS["danger"],
-        font=("Segoe UI Semibold", 10),
+        font=("Segoe UI Semibold", 9),
     )
 
     style.configure(
@@ -152,7 +152,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         lightcolor=COLORS["border"],
         darkcolor=COLORS["border"],
         insertcolor=COLORS["text"],
-        padding=8,
+        padding=6,
     )
     style.map("TEntry", bordercolor=[("focus", COLORS["accent"])])
 
@@ -165,7 +165,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         bordercolor=COLORS["border"],
         lightcolor=COLORS["border"],
         darkcolor=COLORS["border"],
-        padding=6,
+        padding=4,
     )
     style.map(
         "TCombobox",
@@ -181,7 +181,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         borderwidth=0,
         focusthickness=0,
         focuscolor=COLORS["accent"],
-        padding=(14, 10),
+        padding=(12, 8),
         font=("Segoe UI Semibold", 10),
     )
     style.map(
@@ -197,7 +197,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         borderwidth=1,
         focusthickness=0,
         focuscolor=COLORS["card"],
-        padding=(14, 10),
+        padding=(12, 8),
         font=("Segoe UI Semibold", 10),
     )
     style.map(
@@ -213,7 +213,7 @@ def apply_dark_theme(root: tk.Tk) -> ttk.Style:
         borderwidth=0,
         focusthickness=0,
         focuscolor=COLORS["danger"],
-        padding=(14, 10),
+        padding=(12, 8),
         font=("Segoe UI Semibold", 10),
     )
     style.map(
