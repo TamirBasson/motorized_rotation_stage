@@ -32,11 +32,13 @@ constexpr float maxRelativeAngleDeg = 360.0f;
 constexpr float minVirtualZeroOffsetDeg = -180.0f;
 constexpr float maxVirtualZeroOffsetDeg = 180.0f;
 
-constexpr float motorStepsPerRevolution = 3200.0f;  // Effective motor steps, including microstepping.
+//-------------- change based on motor and gear ratio --------------
+constexpr float motorStepsPerRevolution = 200.0f;  // Effective motor steps, including microstepping.
 constexpr float gearRatio = 180.0f;
 constexpr float stageStepsPerRevolution = motorStepsPerRevolution * gearRatio;
+//-------------- change based on motor and gear ratio --------------
 
-constexpr float defaultAccelerationDegPerSec2 = 90.0f;
+constexpr float defaultAccelerationDegPerSec2 = 10.0f; //to change
 constexpr float defaultSeekSpeedDegPerSec = 5.0f;
 constexpr uint32_t minAccelerationStepsPerSec2 = 400UL;
 constexpr uint16_t stepperEnableDelayUs = 50U;
@@ -63,6 +65,7 @@ struct Config {
 };
 
 struct RuntimeState {
+  // This struct is the high-level controller snapshot that the loop updates continuously.
   ControllerState state = ControllerState::IDLE;
   MotionDirection direction = MotionDirection::CW;
   MotionDirection lastTelemetryDirection = MotionDirection::CW;
@@ -80,6 +83,7 @@ struct RuntimeState {
 Config g_config;
 RuntimeState g_runtime;
 
+// Incoming serial bytes are accumulated here until a newline completes one command line.
 char g_rxBuffer[serialBufferLength];
 size_t g_rxLength = 0;
 bool g_rxOverflow = false;
@@ -161,10 +165,12 @@ float getMechanicalAngleDeg() {
   if (g_stepper == nullptr) {
     return 0.0f;
   }
+  // Step count is the source of truth for position; angle is derived from it on demand.
   return normalizeAngle360(stepsToDegrees(g_stepper->getCurrentPosition()));
 }
 
 float getVirtualAngleDeg() {
+  // Virtual angle is a presentation layer concept on top of the mechanical angle.
   return normalizeAngle360(getMechanicalAngleDeg() - g_config.virtualZeroOffsetDeg);
 }
 
@@ -263,6 +269,7 @@ void sendAckTelemetry(int32_t rate) {
 }
 
 void sendTelemetry() {
+  // Telemetry is generated from the current runtime snapshot without stopping motion.
   const bool isRunning = (g_stepper != nullptr) && g_stepper->isRunning();
   const float reportedSpeed = isRunning ? g_runtime.commandedSpeedDegPerSec : 0.0f;
   const MotionDirection reportedDirection =
@@ -288,6 +295,7 @@ void sendTelemetry() {
 // ================================
 
 void clearMotionState(ControllerState nextState = ControllerState::IDLE) {
+  // Preserve the last commanded direction so idle telemetry still reports a meaningful direction.
   if (nextState == ControllerState::IDLE) {
     const bool wasMoving =
         (g_runtime.state == ControllerState::MOVING_ABSOLUTE) ||
@@ -314,6 +322,7 @@ void preemptCurrentMotion() {
   }
 
   if (g_stepper->isRunning()) {
+    // Immediate override is a core system requirement: a new command cancels the old one first.
     g_stepper->forceStop();
   }
   clearMotionState(ControllerState::IDLE);
@@ -348,6 +357,7 @@ bool startMoveByDelta(float deltaAngleDeg, float speedDegPerSec, ControllerState
   preemptCurrentMotion();
   const int32_t deltaSteps = degreesToSteps(deltaAngleDeg);
   if (deltaSteps == 0) {
+    // Zero-distance commands are accepted, but no physical motion needs to be issued.
     clearMotionState(ControllerState::IDLE);
     return true;
   }
@@ -362,6 +372,7 @@ bool startMoveByDelta(float deltaAngleDeg, float speedDegPerSec, ControllerState
   g_runtime.targetPositionSteps = targetSteps;
   g_runtime.homeSearchStartSteps = currentSteps;
 
+  // From this point on FastAccelStepper owns the pulse timing; the loop stays responsive.
   g_stepper->moveTo(targetSteps);
   return true;
 }
@@ -374,6 +385,7 @@ bool startAbsoluteMove(float targetVirtualAngleDeg, float offsetDeg, float speed
   const float targetMechanicalDeg = normalizeAngle360(targetVirtualAngleDeg + g_config.virtualZeroOffsetDeg);
 
   float deltaDeg = 0.0f;
+  // Absolute moves are converted into a signed delta before being handed to the motion engine.
   switch (preferredDirection) {
     case MotionDirection::CW:
       deltaDeg = clockwiseDeltaDeg(currentMechanicalDeg, targetMechanicalDeg);
@@ -432,6 +444,7 @@ bool startMechanicalHoming(float speedDegPerSec) {
   preemptCurrentMotion();
 
   if (homeSensorActive()) {
+    // If the switch is already active, we can define the current position as zero immediately.
     g_stepper->setCurrentPosition(0);
     clearMotionState(ControllerState::IDLE);
     return true;
@@ -445,6 +458,7 @@ bool startMechanicalHoming(float speedDegPerSec) {
   g_runtime.homeSearchStartSteps = g_stepper->getCurrentPosition();
   g_runtime.targetPositionSteps = g_runtime.homeSearchStartSteps - degreesToSteps(360.0f);
 
+  // Homing runs as continuous motion and is supervised from updateMotionState().
   g_stepper->runBackward();
   return true;
 }
@@ -623,6 +637,7 @@ void processCommandLine(const char *line) {
     return;
   }
 
+  
   char workingCopy[serialBufferLength];
   strncpy(workingCopy, line, sizeof(workingCopy) - 1);
   workingCopy[sizeof(workingCopy) - 1] = '\0';
@@ -676,6 +691,7 @@ void processCommandLine(const char *line) {
 // ================================
 
 void serviceSerialReceive() {
+  // Read as many available bytes as possible, but never wait for new bytes to arrive.
   while (Serial.available() > 0) {
     const char incoming = static_cast<char>(Serial.read());
 
@@ -717,6 +733,7 @@ void updateMotionState() {
 
   if (g_runtime.state == ControllerState::HOMING_MECHANICAL_ZERO) {
     if (homeSensorActive()) {
+      // The home switch defines mechanical zero, so we stop and rebase step position to 0.
       g_stepper->forceStopAndNewPosition(0);
       clearMotionState(ControllerState::IDLE);
       return;
@@ -760,6 +777,7 @@ void serviceTelemetry() {
     return;
   }
 
+  // Telemetry uses elapsed time checks instead of delay(), so communication keeps flowing.
   const unsigned long nowMs = millis();
   const unsigned long intervalMs = 1000UL / g_runtime.telemetryRateHz;
   if ((nowMs - g_runtime.lastTelemetryMs) >= intervalMs) {
@@ -777,6 +795,7 @@ void setup() {
 
   Serial.begin(serialBaud);
 
+  // The engine object configures the timer-based step generation used by FastAccelStepper.
   g_stepperEngine.init();
   g_stepper = g_stepperEngine.stepperConnectToPin(stepPin);
 
@@ -802,6 +821,7 @@ void setup() {
 // ================================
 
 void loop() {
+  // Main loop order mirrors the architecture document: input -> state update -> telemetry output.
   serviceSerialReceive();
   updateMotionState();
   serviceTelemetry();
