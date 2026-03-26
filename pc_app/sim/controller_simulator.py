@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""Firmware-style controller simulator used by the PC application.
+
+This file creates an in-process fake controller that looks like a serial device to
+the CommunicationManager. The UI and API send normal protocol commands, and this
+simulator responds with normal ACK / ERR / TLM lines, so end-to-end behavior can
+be tested without a real Arduino or motor.
+
+Internally it keeps firmware-like runtime state, advances motion over time on a
+background thread, converts between angles and steps, and applies the same ideas
+as the planned firmware: non-blocking command handling, periodic telemetry, and
+immediate override of the currently active motion.
+"""
+
 import math
 import threading
 import time
@@ -13,6 +26,7 @@ from pc_app.comm.models import MotionDirection
 
 @dataclass(slots=True)
 class SimulatorConfig:
+    # Match the firmware defaults so PC-side tests see realistic step/angle behavior.
     motor_steps_per_revolution: float = 200.0
     gear_ratio: float = 180.0
     default_seek_speed_deg_per_sec: float = 5.0
@@ -27,6 +41,7 @@ class SimulatorConfig:
 
 
 class ControllerState(str, Enum):
+    # These states intentionally mirror the firmware state machine described in the docs.
     IDLE = "IDLE"
     MOVING_ABSOLUTE = "MOVING_ABSOLUTE"
     MOVING_RELATIVE = "MOVING_RELATIVE"
@@ -37,7 +52,12 @@ class ControllerState(str, Enum):
 
 
 class SimulatedControllerSerial:
-    """Serial-compatible controller simulator that speaks the production protocol."""
+    """Serial-compatible controller simulator that speaks the production protocol.
+
+    From the CommunicationManager's point of view, this object behaves like a serial
+    port. From the simulator's point of view, it is the whole fake controller:
+    command parser, motion state machine, telemetry source, and protocol responder.
+    """
 
     def __init__(
         self,
@@ -53,12 +73,16 @@ class SimulatedControllerSerial:
         self._port = port
         self._timeout = timeout
         self._config = deepcopy(config) if config is not None else SimulatorConfig()
+        # This is the core conversion constant used everywhere for angle <-> step math.
         self._steps_per_revolution = self._config.stage_steps_per_revolution
 
         self._lock = threading.Lock()
         self._closed = threading.Event()
+        # The CommunicationManager reads from this queue as if it were a serial RX buffer.
         self._outbound_lines: Queue[bytes] = Queue()
 
+        # These fields mirror the firmware runtime snapshot: motion state, current step position,
+        # target position, telemetry settings, and virtual-zero configuration.
         self._state = ControllerState.IDLE
         self._direction = MotionDirection.CW
         self._last_telemetry_direction = MotionDirection.CW
@@ -78,6 +102,7 @@ class SimulatedControllerSerial:
         )
         self._thread.start()
 
+    # Serial API expected by CommunicationManager: block briefly, then return one line.
     def readline(self) -> bytes:
         if self._closed.is_set() and self._outbound_lines.empty():
             return b""
@@ -87,10 +112,12 @@ class SimulatedControllerSerial:
         except Empty:
             return b""
 
+    # Serial API expected by CommunicationManager: accept outbound controller commands.
     def write(self, payload: bytes) -> int:
         if self._closed.is_set():
             raise OSError(f"Simulated controller on {self._port} is closed")
 
+        # A real controller receives newline-terminated ASCII commands over serial.
         command_text = payload.decode("ascii")
         for line in command_text.splitlines():
             normalized = line.strip()
@@ -101,10 +128,12 @@ class SimulatedControllerSerial:
     def flush(self) -> None:
         return None
 
+    # Stop the background firmware loop and behave like a closed serial device.
     def close(self) -> None:
         self._closed.set()
         self._thread.join(timeout=1.0)
 
+    # Main background loop that imitates the firmware's "update motion, then service telemetry" flow.
     def _simulation_loop(self) -> None:
         last_update = time.monotonic()
         while not self._closed.wait(self._config.motion_tick_seconds):
@@ -114,10 +143,12 @@ class SimulatedControllerSerial:
 
             outbound_lines: list[str] = []
             with self._lock:
+                # Advance the motor model a small amount each tick so motion is gradual.
                 motion_event = self._advance_motion_locked(delta_seconds)
                 if motion_event is not None:
                     outbound_lines.append(motion_event)
 
+                # Telemetry is scheduled independently of command handling, like the firmware loop.
                 if self._telemetry_rate_hz > 0:
                     interval = 1.0 / self._telemetry_rate_hz
                     if (now - self._last_telemetry_time) >= interval:
@@ -127,6 +158,7 @@ class SimulatedControllerSerial:
             for outbound_line in outbound_lines:
                 self._enqueue_line(outbound_line)
 
+    # Parse one full protocol line exactly as the embedded controller would receive it.
     def _process_command_line(self, line: str) -> None:
         fields = line.split(",")
         outbound_lines: list[str]
@@ -136,6 +168,7 @@ class SimulatedControllerSerial:
         for outbound_line in outbound_lines:
             self._enqueue_line(outbound_line)
 
+    # Top-level command dispatcher: validate the family, then route to the specific handler.
     def _handle_command_locked(self, fields: list[str]) -> list[str]:
         if len(fields) < 2:
             return [self._build_err("BAD_FORMAT", "MESSAGE")]
@@ -143,6 +176,7 @@ class SimulatedControllerSerial:
         if fields[0] != "CMD":
             return [self._build_err("UNKNOWN_COMMAND", fields[0])]
 
+        # Keep dispatch simple and explicit so it stays close to the single-file firmware parser.
         command = fields[1]
         if command == "ROT_ABS":
             return self._handle_rotate_absolute_locked(fields)
@@ -160,6 +194,8 @@ class SimulatedControllerSerial:
             return self._handle_telemetry_locked(fields)
         return [self._build_err("UNKNOWN_COMMAND", command)]
 
+    # Handle ROT_ABS: validate parameters, convert virtual-angle intent into mechanical motion,
+    # and return the same ACK shape that the real firmware would emit.
     def _handle_rotate_absolute_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 6:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_ABS")]
@@ -181,6 +217,7 @@ class SimulatedControllerSerial:
         self._start_absolute_move_locked(angle_deg, offset_deg, speed_deg_per_sec, direction)
         return [f"ACK,ROT_ABS,{angle_deg:.2f},{offset_deg:.2f},{speed_deg_per_sec:.1f},{direction.value}"]
 
+    # Handle ROT_CONST: start indefinite motion that continues until another command overrides it.
     def _handle_rotate_constant_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 4:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_CONST")]
@@ -196,6 +233,7 @@ class SimulatedControllerSerial:
         self._start_constant_rotate_locked(speed_deg_per_sec, direction)
         return [f"ACK,ROT_CONST,{speed_deg_per_sec:.1f},{direction.value}"]
 
+    # Handle ROT_REL: compute a signed move from the current step position.
     def _handle_rotate_relative_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 4:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_REL")]
@@ -214,6 +252,7 @@ class SimulatedControllerSerial:
         self._start_move_by_delta_locked(delta_angle_deg, speed_deg_per_sec, ControllerState.MOVING_RELATIVE)
         return [f"ACK,ROT_REL,{delta_angle_deg:.2f},{speed_deg_per_sec:.1f}"]
 
+    # Handle ROT_HOME: begin a homing search that moves until the simulated home sensor is crossed.
     def _handle_rotate_home_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 2:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_HOME")]
@@ -221,6 +260,7 @@ class SimulatedControllerSerial:
         self._start_mechanical_homing_locked(self._config.default_seek_speed_deg_per_sec)
         return ["ACK,ROT_HOME"]
 
+    # Handle ROT_VZERO: change the virtual offset and move so the reported virtual angle becomes zero.
     def _handle_rotate_virtual_zero_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 3:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_VZERO")]
@@ -235,6 +275,7 @@ class SimulatedControllerSerial:
         self._start_rotate_to_virtual_zero_locked(offset_deg)
         return [f"ACK,ROT_VZERO,{offset_deg:.2f}"]
 
+    # Handle STOP: immediately preempt the current motion state.
     def _handle_stop_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 2:
             return [self._build_err("BAD_FIELD_COUNT", "STOP")]
@@ -242,6 +283,7 @@ class SimulatedControllerSerial:
         self._stop_now_locked()
         return ["ACK,STOP"]
 
+    # Handle TLM: either change cyclic telemetry rate or emit one sample immediately.
     def _handle_telemetry_locked(self, fields: list[str]) -> list[str]:
         if len(fields) != 3:
             return [self._build_err("BAD_FIELD_COUNT", "TLM")]
@@ -254,12 +296,14 @@ class SimulatedControllerSerial:
             return [self._build_err("PARAM_OUT_OF_RANGE", "TLM")]
 
         if rate == -1:
+            # The protocol defines -1 as "ACK now, then send one telemetry sample immediately".
             return ["ACK,TLM,-1", self._build_telemetry_line_locked()]
 
         self._telemetry_rate_hz = rate
         self._last_telemetry_time = time.monotonic()
         return [f"ACK,TLM,{rate}"]
 
+    # Convert an absolute command in virtual coordinates into the mechanical delta that the motor must run.
     def _start_absolute_move_locked(
         self,
         target_virtual_angle_deg: float,
@@ -267,6 +311,7 @@ class SimulatedControllerSerial:
         speed_deg_per_sec: float,
         preferred_direction: MotionDirection,
     ) -> None:
+        # The command is expressed in virtual-angle space, but motion runs in mechanical space.
         self._virtual_zero_offset_deg = offset_deg
         self._preempt_current_motion_locked()
 
@@ -279,6 +324,7 @@ class SimulatedControllerSerial:
 
         self._start_move_by_delta_locked(delta_deg, speed_deg_per_sec, ControllerState.MOVING_ABSOLUTE)
 
+    # Common entry point for finite moves: convert degrees to steps and populate the motion state.
     def _start_move_by_delta_locked(
         self,
         delta_angle_deg: float,
@@ -289,6 +335,7 @@ class SimulatedControllerSerial:
 
         delta_steps = self._degrees_to_steps(delta_angle_deg)
         if delta_steps == 0:
+            # Zero-distance commands are valid; they just do not enter a moving state.
             self._clear_motion_state_locked(ControllerState.IDLE)
             return
 
@@ -299,11 +346,14 @@ class SimulatedControllerSerial:
         self._home_search_start_steps = self._steps
         self._step_residual = 0.0
 
+    # Move to the position where the reported virtual angle becomes zero.
     def _start_rotate_to_virtual_zero_locked(self, offset_deg: float) -> None:
         self._virtual_zero_offset_deg = offset_deg
         self._preempt_current_motion_locked()
 
         current_mechanical_deg = self._get_mechanical_angle_deg_locked()
+        # Firmware behavior: move until virtual angle becomes zero, which means
+        # mechanical_angle == virtual_zero_offset.
         target_mechanical_deg = self._normalize_angle_360(self._virtual_zero_offset_deg)
         delta_deg = self._shortest_signed_delta_deg(current_mechanical_deg, target_mechanical_deg)
         self._start_move_by_delta_locked(
@@ -312,6 +362,7 @@ class SimulatedControllerSerial:
             ControllerState.MOVING_TO_VIRTUAL_ZERO,
         )
 
+    # Start an "infinite" rotation state. No fixed target is used; the step count just keeps changing.
     def _start_constant_rotate_locked(self, speed_deg_per_sec: float, direction: MotionDirection) -> None:
         self._preempt_current_motion_locked()
         self._state = ControllerState.CONSTANT_ROTATE
@@ -321,9 +372,11 @@ class SimulatedControllerSerial:
         self._home_search_start_steps = self._steps
         self._step_residual = 0.0
 
+    # Start homing by rotating CCW until the simulated home switch is hit or one revolution is exceeded.
     def _start_mechanical_homing_locked(self, speed_deg_per_sec: float) -> None:
         self._preempt_current_motion_locked()
         if self._home_sensor_active_now_locked():
+            # If the stage already sits on the home sensor, homing completes immediately.
             self._steps = 0
             self._clear_motion_state_locked(ControllerState.IDLE)
             return
@@ -335,14 +388,19 @@ class SimulatedControllerSerial:
         self._target_steps = self._steps - self._steps_per_revolution
         self._step_residual = 0.0
 
+    # Stop is modeled as the same immediate preemption that any newer command would cause.
     def _stop_now_locked(self) -> None:
         self._preempt_current_motion_locked()
 
+    # Firmware rule: a newly accepted command overrides the current motion without waiting for completion.
     def _preempt_current_motion_locked(self) -> None:
+        # New commands override old ones immediately, matching the architecture docs.
         self._clear_motion_state_locked(ControllerState.IDLE)
 
+    # Reset the active-motion fields while preserving the direction needed for idle telemetry reporting.
     def _clear_motion_state_locked(self, next_state: ControllerState = ControllerState.IDLE) -> None:
         if next_state == ControllerState.IDLE and self._is_motion_state(self._state):
+            # Idle telemetry should still report the most recently commanded direction.
             self._last_telemetry_direction = self._direction
 
         self._state = next_state
@@ -352,6 +410,8 @@ class SimulatedControllerSerial:
         self._home_search_start_steps = self._steps
         self._step_residual = 0.0
 
+    # Advance the firmware state machine by one time slice and update internal steps accordingly.
+    # This is the key method that makes motion gradual instead of jumping straight to the destination.
     def _advance_motion_locked(self, delta_seconds: float) -> str | None:
         if delta_seconds <= 0.0:
             return None
@@ -365,6 +425,7 @@ class SimulatedControllerSerial:
             self._steps -= moved_steps
 
             if self._config.home_sensor_enabled and self._crossed_home_sensor(previous_steps, self._steps):
+                # Crossing the virtual home switch rebases the internal position to exactly zero.
                 self._steps = 0
                 self._clear_motion_state_locked(ControllerState.IDLE)
                 return None
@@ -374,6 +435,7 @@ class SimulatedControllerSerial:
                 return self._build_err("ZERO_NOT_FOUND", "ROT_HOME")
             return None
 
+        # These states all share the same "move toward a finite target step" behavior.
         if self._state in {
             ControllerState.MOVING_ABSOLUTE,
             ControllerState.MOVING_RELATIVE,
@@ -388,6 +450,7 @@ class SimulatedControllerSerial:
             else:
                 self._steps = max(self._steps - moved_steps, self._target_steps)
 
+            # Clamp to the target so the simulator finishes cleanly without oscillating around it.
             if self._steps == self._target_steps:
                 self._clear_motion_state_locked(ControllerState.IDLE)
             return None
@@ -404,13 +467,16 @@ class SimulatedControllerSerial:
 
         return None
 
+    # Convert elapsed time and commanded speed into a whole-step increment for this tick.
     def _compute_step_increment_locked(self, delta_seconds: float) -> int:
         speed_steps_per_second = self._degrees_per_second_to_step_hz(self._commanded_speed_deg_per_sec)
         desired_steps = (speed_steps_per_second * delta_seconds) + self._step_residual
         whole_steps = int(desired_steps)
+        # Preserve the fractional remainder so small tick intervals still integrate to the right speed.
         self._step_residual = desired_steps - whole_steps
         return whole_steps
 
+    # Build the exact ASCII telemetry line consumed by the existing protocol parser on the PC side.
     def _build_telemetry_line_locked(self) -> str:
         is_running = self._state not in {ControllerState.IDLE, ControllerState.ERROR}
         reported_speed = self._commanded_speed_deg_per_sec if is_running else 0.0
@@ -420,26 +486,33 @@ class SimulatedControllerSerial:
             f"{1 if is_running else 0},{reported_speed:.2f},{reported_direction.value},{self._steps}"
         )
 
+    # Mechanical angle is the physical position derived from the internal step count.
     def _get_mechanical_angle_deg_locked(self) -> float:
         return self._normalize_angle_360(self._steps_to_degrees(self._steps))
 
+    # Virtual angle is the operator-facing angle after applying the configured software offset.
     def _get_virtual_angle_deg_locked(self) -> float:
+        # Virtual angle is a view of the same physical position in a shifted reference frame.
         return self._normalize_angle_360(self._get_mechanical_angle_deg_locked() - self._virtual_zero_offset_deg)
 
+    # The simulated home sensor is active at each full revolution boundary when enabled.
     def _home_sensor_active_now_locked(self) -> bool:
         if not self._config.home_sensor_enabled:
             return False
         return self._steps % self._steps_per_revolution == 0
 
+    # Detect whether the motion during this tick crossed the home-switch position.
     def _crossed_home_sensor(self, previous_steps: int, current_steps: int) -> bool:
         if previous_steps == current_steps:
             return self._home_sensor_active_now_locked()
 
+        # Detect whether the step interval crossed any full-revolution boundary.
         lower_bound = min(previous_steps, current_steps)
         upper_bound = max(previous_steps, current_steps)
         first_multiple = math.ceil(lower_bound / self._steps_per_revolution) * self._steps_per_revolution
         return first_multiple <= upper_bound
 
+    # These conversion helpers are the bridge between user-facing angle commands and motor-facing step math.
     def _degrees_to_steps(self, angle_deg: float) -> int:
         return self._round_to_int32((angle_deg * self._steps_per_revolution) / 360.0)
 
@@ -450,10 +523,12 @@ class SimulatedControllerSerial:
         return (speed_deg_per_sec * self._steps_per_revolution) / 360.0
 
     @staticmethod
+    # Build a protocol-level ERR line instead of raising internally, matching firmware behavior.
     def _build_err(code: str, details: str) -> str:
         return f"ERR,{code},{details}"
 
     @staticmethod
+    # Wrap angles into the controller's 0..360 representation.
     def _normalize_angle_360(angle_deg: float) -> float:
         wrapped = math.fmod(angle_deg, 360.0)
         if wrapped < 0.0:
@@ -463,6 +538,7 @@ class SimulatedControllerSerial:
         return wrapped
 
     @staticmethod
+    # Choose the shortest signed rotation from current to target.
     def _shortest_signed_delta_deg(current_deg: float, target_deg: float) -> float:
         delta = SimulatedControllerSerial._normalize_angle_360(target_deg - current_deg)
         if delta > 180.0:
@@ -470,14 +546,17 @@ class SimulatedControllerSerial:
         return delta
 
     @staticmethod
+    # Force a clockwise-only solution for absolute moves when the command asks for CW.
     def _clockwise_delta_deg(current_deg: float, target_deg: float) -> float:
         return SimulatedControllerSerial._normalize_angle_360(target_deg - current_deg)
 
     @staticmethod
+    # Force a counter-clockwise-only solution for absolute moves when the command asks for CCW.
     def _counter_clockwise_delta_deg(current_deg: float, target_deg: float) -> float:
         return -SimulatedControllerSerial._normalize_angle_360(current_deg - target_deg)
 
     @staticmethod
+    # Match the firmware's signed rounding behavior when converting floating-point angles to integer steps.
     def _round_to_int32(value: float) -> int:
         return int(value + 0.5) if value >= 0.0 else int(value - 0.5)
 
@@ -486,6 +565,7 @@ class SimulatedControllerSerial:
         return minimum <= value <= maximum
 
     @staticmethod
+    # Parsing helpers reject malformed protocol fields the same way embedded code would.
     def _parse_float(raw_value: str) -> float | None:
         try:
             value = float(raw_value)
@@ -509,6 +589,7 @@ class SimulatedControllerSerial:
         return None
 
     @staticmethod
+    # Utility used when deciding whether to preserve the last motion direction for telemetry.
     def _is_motion_state(state: ControllerState) -> bool:
         return state in {
             ControllerState.MOVING_ABSOLUTE,
@@ -518,14 +599,17 @@ class SimulatedControllerSerial:
             ControllerState.MOVING_TO_VIRTUAL_ZERO,
         }
 
+    # Push one ASCII line into the simulated RX queue so the manager reads it like serial input.
     def _enqueue_line(self, line: str) -> None:
         self._outbound_lines.put(f"{line}\r\n".encode("ascii"))
 
 
 def build_simulated_serial_factory(config: SimulatorConfig | None = None):
+    # Snapshot the config so each created simulator starts from a clean, predictable state.
     config_snapshot = deepcopy(config) if config is not None else SimulatorConfig()
 
     def factory(*, port: str, baudrate: int, timeout: float, write_timeout: float) -> SimulatedControllerSerial:
+        # Hand each CommunicationManager its own isolated controller instance.
         return SimulatedControllerSerial(
             port=port,
             baudrate=baudrate,
