@@ -23,7 +23,7 @@ class ControllerSimulatorIntegrationTests(unittest.TestCase):
         subscription = api.subscribe_telemetry(handle_telemetry, replay_latest=False)
         try:
             api.set_telemetry_rate(20)
-            api.rotate_relative(delta_angle_deg=20.0, speed_deg_per_sec=10.0)
+            api.rotate_relative(delta_angle_deg=20.0, speed_deg_per_sec=10.0, direction="CW")
 
             self.assertTrue(enough_updates.wait(timeout=1.5), "Expected multiple telemetry updates during motion")
             self.assertTrue(any(sample.running for sample in received), "Telemetry never reported active motion")
@@ -53,7 +53,7 @@ class ControllerSimulatorIntegrationTests(unittest.TestCase):
             )
             self.assertTrue(running_cw.running)
 
-            api.rotate_relative(delta_angle_deg=-15.0, speed_deg_per_sec=10.0)
+            api.rotate_relative(delta_angle_deg=15.0, speed_deg_per_sec=10.0, direction="CCW")
             running_ccw = _wait_for_telemetry(
                 lambda sample: sample.running and sample.direction == MotionDirection.CCW,
                 api=api,

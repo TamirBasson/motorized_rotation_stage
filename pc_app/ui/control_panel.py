@@ -162,10 +162,10 @@ class ControlPanel(ttk.Frame):
             delta_magnitude_deg = float(self._rel_delta.get())
             if not 0.0 <= delta_magnitude_deg <= 360.0:
                 raise ValueError("Delta angle must be within 0 to 360 degrees")
-            signed_delta_deg = delta_magnitude_deg if self._rel_direction.get() == "CW" else -delta_magnitude_deg
             return self._controller.rotate_relative(
-                delta_angle_deg=signed_delta_deg,
+                delta_angle_deg=delta_magnitude_deg,
                 speed_deg_per_sec=float(self._rel_speed.get()),
+                direction=self._rel_direction.get(),
             )
 
         return action

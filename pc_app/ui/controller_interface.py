@@ -24,7 +24,14 @@ class StageController(Protocol):
 
     def constant_rotate(self, speed_deg_per_sec: float, direction: str, *, timeout: float = 1.0) -> AckMessage: ...
 
-    def rotate_relative(self, delta_angle_deg: float, speed_deg_per_sec: float, *, timeout: float = 1.0) -> AckMessage: ...
+    def rotate_relative(
+        self,
+        delta_angle_deg: float,
+        speed_deg_per_sec: float,
+        direction: str,
+        *,
+        timeout: float = 1.0,
+    ) -> AckMessage: ...
 
     def rotate_mechanical_zero(self, *, timeout: float = 1.0) -> AckMessage: ...
 

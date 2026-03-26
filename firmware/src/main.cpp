@@ -13,11 +13,9 @@ constexpr uint32_t serialBaud = 115200UL;
 
 constexpr uint8_t stepPin = 9;   // FastAccelStepper uses Nano timer-backed step pins.
 constexpr uint8_t dirPin = 5;
-constexpr uint8_t enablePin = 6;
 constexpr uint8_t homePin = 7;
 
 constexpr bool dirPinHighCountsUp = true;      // Positive steps = CW in protocol space.
-constexpr bool enablePinIsActiveLow = true;
 constexpr bool homeInputIsActiveLow = true;
 
 constexpr size_t serialBufferLength = 96;
@@ -27,7 +25,7 @@ constexpr float minSpeedDegPerSec = 0.1f;
 constexpr float maxSpeedDegPerSec = 20.0f;
 constexpr float minAbsoluteAngleDeg = 0.0f;
 constexpr float maxAbsoluteAngleDeg = 360.0f;
-constexpr float minRelativeAngleDeg = -360.0f;
+constexpr float minRelativeAngleDeg = 0.0f;
 constexpr float maxRelativeAngleDeg = 360.0f;
 constexpr float minVirtualZeroOffsetDeg = -180.0f;
 constexpr float maxVirtualZeroOffsetDeg = 180.0f;
@@ -41,8 +39,6 @@ constexpr float stageStepsPerRevolution = motorStepsPerRevolution * gearRatio;
 constexpr float defaultAccelerationDegPerSec2 = 10.0f; //to change
 constexpr float defaultSeekSpeedDegPerSec = 5.0f;
 constexpr uint32_t minAccelerationStepsPerSec2 = 400UL;
-constexpr uint16_t stepperEnableDelayUs = 50U;
-constexpr uint16_t stepperDisableDelayMs = 20U;
 
 // ================================
 // Enums and structs
@@ -246,11 +242,13 @@ void sendAckRotConst(float speedDegPerSec, const char *direction) {
   Serial.println(direction);
 }
 
-void sendAckRotRel(float deltaAngleDeg, float speedDegPerSec) {
+void sendAckRotRel(float deltaAngleDeg, float speedDegPerSec, const char *direction) {
   Serial.print(F("ACK,ROT_REL,"));
   Serial.print(deltaAngleDeg, 2);
   Serial.print(F(","));
-  Serial.println(speedDegPerSec, 1);
+  Serial.print(speedDegPerSec, 1);
+  Serial.print(F(","));
+  Serial.println(direction);
 }
 
 void sendAckSimple(const char *commandName) {
@@ -537,15 +535,17 @@ void handleRotateConstant(char *fields[], uint8_t fieldCount) {
 }
 
 void handleRotateRelative(char *fields[], uint8_t fieldCount) {
-  if (fieldCount != 4) {
+  if (fieldCount != 5) {
     sendErr("BAD_FIELD_COUNT", "ROT_REL");
     return;
   }
 
   float deltaDeg = 0.0f;
   float speedDegPerSec = 0.0f;
+  MotionDirection direction = MotionDirection::CW;
 
-  if (!parseFloatStrict(fields[2], deltaDeg) || !parseFloatStrict(fields[3], speedDegPerSec)) {
+  if (!parseFloatStrict(fields[2], deltaDeg) || !parseFloatStrict(fields[3], speedDegPerSec) ||
+      !parseDirectionToken(fields[4], direction)) {
     sendErr("BAD_FORMAT", "ROT_REL");
     return;
   }
@@ -556,8 +556,9 @@ void handleRotateRelative(char *fields[], uint8_t fieldCount) {
     return;
   }
 
-  if (startMoveByDelta(deltaDeg, speedDegPerSec, ControllerState::MOVING_RELATIVE)) {
-    sendAckRotRel(deltaDeg, speedDegPerSec);
+  const float signedDeltaDeg = (direction == MotionDirection::CW) ? deltaDeg : -deltaDeg;
+  if (startMoveByDelta(signedDeltaDeg, speedDegPerSec, ControllerState::MOVING_RELATIVE)) {
+    sendAckRotRel(deltaDeg, speedDegPerSec, fields[4]);
   }
 }
 
@@ -801,10 +802,6 @@ void setup() {
 
   if (g_stepper != nullptr) {
     g_stepper->setDirectionPin(dirPin, dirPinHighCountsUp);
-    g_stepper->setEnablePin(enablePin, enablePinIsActiveLow);
-    g_stepper->setAutoEnable(true);
-    g_stepper->setDelayToEnable(stepperEnableDelayUs);
-    g_stepper->setDelayToDisable(stepperDisableDelayMs);
     configureMotionProfile(defaultSeekSpeedDegPerSec);
 
     if (homeSensorActive()) {

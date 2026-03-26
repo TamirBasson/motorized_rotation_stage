@@ -6,6 +6,19 @@ from pc_app.comm.models import AckMessage
 
 
 class RotationStageApiTests(unittest.TestCase):
+    def test_rotate_relative_forwards_directional_command(self) -> None:
+        manager = Mock()
+        manager.send_command.return_value = AckMessage(command_type="ROT_REL", parameters=())
+        api = RotationStageAPI(manager)
+
+        api.rotate_relative(
+            delta_angle_deg=45.0,
+            speed_deg_per_sec=3.0,
+            direction="CCW",
+        )
+
+        manager.send_command.assert_called_once_with("CMD,ROT_REL,45.00,3.00,CCW", timeout=1.0)
+
     def test_rotate_absolute_updates_virtual_zero_offset(self) -> None:
         manager = Mock()
         manager.send_command.return_value = AckMessage(command_type="ROT_ABS", parameters=())

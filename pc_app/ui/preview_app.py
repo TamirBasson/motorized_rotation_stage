@@ -73,20 +73,31 @@ class PreviewController:
         self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_CONST", parameters=(f"{speed_deg_per_sec:.2f}", direction))
 
-    def rotate_relative(self, delta_angle_deg: float, speed_deg_per_sec: float, *, timeout: float = 1.0) -> AckMessage:
+    def rotate_relative(
+        self,
+        delta_angle_deg: float,
+        speed_deg_per_sec: float,
+        direction: str,
+        *,
+        timeout: float = 1.0,
+    ) -> AckMessage:
         del timeout
         with self._lock:
-            direction = MotionDirection.CW if delta_angle_deg >= 0 else MotionDirection.CCW
+            motion_direction = MotionDirection(direction)
+            signed_delta_deg = delta_angle_deg if motion_direction == MotionDirection.CW else -delta_angle_deg
             self._telemetry = self._build_telemetry(
-                mechanical_angle_deg=self._telemetry.mechanical_angle_deg + delta_angle_deg,
+                mechanical_angle_deg=self._telemetry.mechanical_angle_deg + signed_delta_deg,
                 running=True,
                 speed_deg_per_sec=speed_deg_per_sec,
-                direction=direction,
-                steps=self._telemetry.steps + int(abs(delta_angle_deg) * 10),
+                direction=motion_direction,
+                steps=self._telemetry.steps + int(delta_angle_deg * 10),
             )
             telemetry = self._telemetry
         self._telemetry_bus.publish(telemetry)
-        return AckMessage(command_type="ROT_REL", parameters=(f"{delta_angle_deg:.2f}", f"{speed_deg_per_sec:.2f}"))
+        return AckMessage(
+            command_type="ROT_REL",
+            parameters=(f"{delta_angle_deg:.2f}", f"{speed_deg_per_sec:.2f}", direction),
+        )
 
     def rotate_mechanical_zero(self, *, timeout: float = 1.0) -> AckMessage:
         del timeout

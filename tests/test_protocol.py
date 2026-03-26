@@ -4,6 +4,7 @@ from pc_app.comm.models import AckMessage, ErrMessage, MotionDirection, Telemetr
 from pc_app.comm.protocol import (
     ProtocolError,
     build_rotate_absolute_command,
+    build_rotate_relative_command,
     build_set_telemetry_rate_command,
     parse_message,
 )
@@ -44,6 +45,10 @@ class ProtocolParserTests(unittest.TestCase):
         self.assertEqual(
             build_rotate_absolute_command(120.0, -15.0, 5.0, "CW"),
             "CMD,ROT_ABS,120.00,-15.00,5.00,CW",
+        )
+        self.assertEqual(
+            build_rotate_relative_command(45.0, 3.0, "CCW"),
+            "CMD,ROT_REL,45.00,3.00,CCW",
         )
         self.assertEqual(build_set_telemetry_rate_command(10), "CMD,TLM,10")
 

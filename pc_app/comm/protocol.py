@@ -12,7 +12,7 @@ class ProtocolError(ValueError):
 ACK_FIELD_COUNTS: Final[dict[str, int]] = {
     "ROT_ABS": 6,
     "ROT_CONST": 4,
-    "ROT_REL": 4,
+    "ROT_REL": 5,
     "ROT_HOME": 2,
     "ROT_VZERO": 3,
     "STOP": 2,
@@ -69,10 +69,11 @@ def build_constant_rotate_command(speed_deg_per_sec: float, direction: str) -> s
     return ",".join(["CMD", "ROT_CONST", _format_float(speed_deg_per_sec), direction])
 
 
-def build_rotate_relative_command(delta_angle_deg: float, speed_deg_per_sec: float) -> str:
-    _validate_range("delta_angle_deg", delta_angle_deg, -360.0, 360.0)
+def build_rotate_relative_command(delta_angle_deg: float, speed_deg_per_sec: float, direction: str) -> str:
+    _validate_range("delta_angle_deg", delta_angle_deg, 0.0, 360.0)
     _validate_range("speed_deg_per_sec", speed_deg_per_sec, 0.1, 20.0)
-    return ",".join(["CMD", "ROT_REL", _format_float(delta_angle_deg), _format_float(speed_deg_per_sec)])
+    _validate_direction(direction, allowed={"CW", "CCW"})
+    return ",".join(["CMD", "ROT_REL", _format_float(delta_angle_deg), _format_float(speed_deg_per_sec), direction])
 
 
 def build_rotate_home_command() -> str:

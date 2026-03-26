@@ -233,24 +233,26 @@ class SimulatedControllerSerial:
         self._start_constant_rotate_locked(speed_deg_per_sec, direction)
         return [f"ACK,ROT_CONST,{speed_deg_per_sec:.1f},{direction.value}"]
 
-    # Handle ROT_REL: compute a signed move from the current step position.
+    # Handle ROT_REL: move by a positive delta in the explicit commanded direction.
     def _handle_rotate_relative_locked(self, fields: list[str]) -> list[str]:
-        if len(fields) != 4:
+        if len(fields) != 5:
             return [self._build_err("BAD_FIELD_COUNT", "ROT_REL")]
 
         delta_angle_deg = self._parse_float(fields[2])
         speed_deg_per_sec = self._parse_float(fields[3])
-        if delta_angle_deg is None or speed_deg_per_sec is None:
+        direction = self._parse_direction(fields[4])
+        if delta_angle_deg is None or speed_deg_per_sec is None or direction is None:
             return [self._build_err("BAD_FORMAT", "ROT_REL")]
 
         if not (
-            self._value_in_range(delta_angle_deg, -360.0, 360.0)
+            self._value_in_range(delta_angle_deg, 0.0, 360.0)
             and self._value_in_range(speed_deg_per_sec, 0.1, 20.0)
         ):
             return [self._build_err("PARAM_OUT_OF_RANGE", "ROT_REL")]
 
-        self._start_move_by_delta_locked(delta_angle_deg, speed_deg_per_sec, ControllerState.MOVING_RELATIVE)
-        return [f"ACK,ROT_REL,{delta_angle_deg:.2f},{speed_deg_per_sec:.1f}"]
+        signed_delta_deg = delta_angle_deg if direction == MotionDirection.CW else -delta_angle_deg
+        self._start_move_by_delta_locked(signed_delta_deg, speed_deg_per_sec, ControllerState.MOVING_RELATIVE)
+        return [f"ACK,ROT_REL,{delta_angle_deg:.2f},{speed_deg_per_sec:.1f},{direction.value}"]
 
     # Handle ROT_HOME: begin a homing search that moves until the simulated home sensor is crossed.
     def _handle_rotate_home_locked(self, fields: list[str]) -> list[str]:

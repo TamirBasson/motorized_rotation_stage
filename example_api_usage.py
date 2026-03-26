@@ -69,10 +69,10 @@ def main() -> None:
         # Goal:
         # Move by a delta relative to the current position.
         #
-        # Negative delta means rotate in the negative direction from the current
-        # position. This is useful for scan patterns and incremental adjustment.
+        # The relative move command uses a positive magnitude plus an explicit
+        # direction. This is useful for scan patterns and incremental adjustment.
         print("\n=== Example 2: Relative move ===")
-        print(api.rotate_relative(delta_angle_deg=-45.0, speed_deg_per_sec=3.0))
+        print(api.rotate_relative(delta_angle_deg=45.0, speed_deg_per_sec=3.0, direction="CCW"))
         time.sleep(2.0)
 
         # ---------------------------------------------------------------------

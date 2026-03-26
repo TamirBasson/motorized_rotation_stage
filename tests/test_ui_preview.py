@@ -25,7 +25,7 @@ class UiPreviewTests(unittest.TestCase):
         try:
             before = controller.get_latest_telemetry()
             controller.rotate_absolute(120.0, -15.0, 5.0, "CW")
-            controller.rotate_relative(10.0, 3.0)
+            controller.rotate_relative(10.0, 3.0, "CW")
             after = controller.get_latest_telemetry()
         finally:
             controller.shutdown()

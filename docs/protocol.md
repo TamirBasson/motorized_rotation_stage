@@ -62,10 +62,10 @@ Example:
 
 ### 3. Rotate Relative
 Format:
-`CMD,ROT_REL,<delta_angle_deg>,<speed_deg_per_sec>`
+`CMD,ROT_REL,<delta_angle_deg>,<speed_deg_per_sec>,<direction>`
 
 Example:
-`CMD,ROT_REL,-45.00,3.0`
+`CMD,ROT_REL,45.00,3.0,CCW`
 
 ---
 
@@ -122,7 +122,7 @@ General format:
 Examples:
 - `ACK,ROT_ABS,120.00,-15.00,5.0,CW`
 - `ACK,ROT_CONST,2.5,CCW`
-- `ACK,ROT_REL,-45.00,3.0`
+- `ACK,ROT_REL,45.00,3.0,CCW`
 - `ACK,ROT_HOME`
 - `ACK,ROT_VZERO,-12.50`
 - `ACK,STOP`
@@ -193,8 +193,9 @@ Example:
 - direction: `CW`, `CCW`
 
 ### Rotate Relative
-- delta angle: -360 to +360
+- delta angle: 0 to 360
 - speed: 0.1 to 20
+- direction: `CW`, `CCW`
 
 ### Telemetry
 - rate:

@@ -122,9 +122,20 @@ class RotationStageAPI:
             timeout=timeout,
         )
 
-    def rotate_relative(self, delta_angle_deg: float, speed_deg_per_sec: float, *, timeout: float = 1.0) -> AckMessage:
+    def rotate_relative(
+        self,
+        delta_angle_deg: float,
+        speed_deg_per_sec: float,
+        direction: str,
+        *,
+        timeout: float = 1.0,
+    ) -> AckMessage:
         return self._communication_manager.send_command(
-            build_rotate_relative_command(delta_angle_deg=delta_angle_deg, speed_deg_per_sec=speed_deg_per_sec),
+            build_rotate_relative_command(
+                delta_angle_deg=delta_angle_deg,
+                speed_deg_per_sec=speed_deg_per_sec,
+                direction=direction,
+            ),
             timeout=timeout,
         )
 
