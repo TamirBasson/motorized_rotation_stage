@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from pc_app.comm import (
     AckMessage,
@@ -16,6 +16,9 @@ from pc_app.comm import (
     build_set_telemetry_rate_command,
     build_stop_command,
 )
+
+if TYPE_CHECKING:
+    from pc_app.sim.controller_simulator import SimulatorConfig
 
 
 class RotationStageAPI:
@@ -56,6 +59,27 @@ class RotationStageAPI:
             read_timeout=read_timeout,
             write_timeout=write_timeout,
         )
+
+    @classmethod
+    def from_simulator(
+        cls,
+        *,
+        port: str = "SIMULATED_CONTROLLER",
+        baudrate: int = 115200,
+        read_timeout: float = 0.05,
+        write_timeout: float = 1.0,
+        simulator_config: SimulatorConfig | None = None,
+    ) -> RotationStageAPI:
+        from pc_app.sim.controller_simulator import build_simulated_serial_factory
+
+        manager = CommunicationManager(
+            port=port,
+            baudrate=baudrate,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            serial_factory=build_simulated_serial_factory(simulator_config),
+        )
+        return cls(manager)
 
     @property
     def communication_manager(self) -> CommunicationManager:

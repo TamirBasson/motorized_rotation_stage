@@ -96,17 +96,25 @@ python -m pip install pyserial
 python -m unittest discover -s tests -v
 ```
 
-### 3. Launch the UI preview without hardware
+### 3. Launch the simulator UI without hardware
 
-This starts the local preview controller and UI so engineers can inspect the current desktop workflow without connecting an Arduino.
+This starts the software controller simulator and the normal dashboard UI through the same `CommunicationManager` and API stack used by the real system.
 
 ```powershell
-python -m pc_app.ui.preview_app
+python -m pc_app.ui.simulator_app
 ```
 
-### 4. Launch the real UI with hardware
+### 4. Launch the real system UI with hardware
 
-The real dashboard UI can now connect directly to the Arduino through the shared `CommunicationManager`.
+The simplest way on Windows is:
+
+```powershell
+.\start_rotation_stage.bat
+```
+
+That launcher starts the real hardware UI and checks that Python and `pyserial` are available first.
+
+You can also launch the real UI directly:
 
 Auto-detect port:
 
@@ -122,7 +130,15 @@ python -m pc_app.ui.hardware_app COM3
 
 The UI does not open serial directly. It uses `RotationStageAPI`, which routes all communication through the single shared `CommunicationManager`.
 
-### 5. Run the API example with hardware
+### 5. Run the API example against the simulator
+
+```powershell
+python example_api_usage.py --simulator
+```
+
+This is useful for end-to-end testing of command flow and telemetry without an Arduino connected.
+
+### 6. Run the API example with hardware
 
 The repository also includes a Python example script that connects to the real controller, subscribes to telemetry, and demonstrates:
 

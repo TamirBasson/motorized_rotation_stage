@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 from pc_app.comm.models import AckMessage, ErrMessage, ParsedInboundMessage, TelemetryState
 from pc_app.comm.protocol import ProtocolError, parse_message
@@ -20,6 +20,19 @@ except ImportError:  # pragma: no cover - exercised only when pyserial is missin
 
 if TYPE_CHECKING:
     from serial import Serial
+
+
+class SerialLike(Protocol):
+    def readline(self) -> bytes: ...
+
+    def write(self, payload: bytes) -> int: ...
+
+    def flush(self) -> None: ...
+
+    def close(self) -> None: ...
+
+
+SerialFactory = Callable[..., SerialLike]
 
 
 class CommunicationError(RuntimeError):
@@ -51,13 +64,15 @@ class CommunicationManager:
         *,
         read_timeout: float = 0.1,
         write_timeout: float = 1.0,
+        serial_factory: SerialFactory | None = None,
     ) -> None:
         self._port = port
         self._baudrate = baudrate
         self._read_timeout = read_timeout
         self._write_timeout = write_timeout
+        self._serial_factory = serial_factory
 
-        self._serial: Serial | None = None
+        self._serial: SerialLike | None = None
         self._reader_thread: threading.Thread | None = None
         self._running = threading.Event()
 
@@ -82,12 +97,13 @@ class CommunicationManager:
     def start(self) -> None:
         if self._running.is_set():
             return
-        if serial is None:
+        if self._serial_factory is None and serial is None:
             raise CommunicationError("pyserial is required to use the communication manager")
 
         self._claim_port()
         try:
-            self._serial = serial.Serial(
+            serial_factory = self._serial_factory or _default_serial_factory
+            self._serial = serial_factory(
                 port=self._port,
                 baudrate=self._baudrate,
                 timeout=self._read_timeout,
@@ -260,7 +276,7 @@ class CommunicationManager:
                 raise CommunicationError("Communication manager stopped while waiting for a response")
             return response
 
-    def _require_serial(self) -> Serial:
+    def _require_serial(self) -> SerialLike:
         serial_handle = self._serial
         if serial_handle is None or not self._running.is_set():
             raise CommunicationError("Communication manager is not started")
@@ -275,3 +291,7 @@ class CommunicationManager:
     def _release_port(self) -> None:
         with self._owned_ports_lock:
             self._owned_ports.discard(self._port)
+
+
+def _default_serial_factory(*args: Any, **kwargs: Any) -> Serial:
+    return serial.Serial(*args, **kwargs)
