@@ -17,7 +17,7 @@ from pc_app.comm.protocol import (
     parse_message,
 )
 from pc_app.comm.port_detection import auto_detect_controller_port, list_serial_ports
-from pc_app.comm.telemetry_bus import TelemetryBus, TelemetrySubscription
+from pc_app.comm.telemetry_bus import TelemetryBus, TelemetryPriority, TelemetrySubscription
 
 __all__ = [
     "AckMessage",
@@ -32,6 +32,7 @@ __all__ = [
     "ProtocolError",
     "ResponseTimeoutError",
     "TelemetryBus",
+    "TelemetryPriority",
     "TelemetryState",
     "TelemetrySubscription",
     "build_constant_rotate_command",

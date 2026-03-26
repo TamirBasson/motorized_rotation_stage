@@ -91,8 +91,8 @@ class CommunicationManagerFanoutTests(unittest.TestCase):
 
         manager = CommunicationManager(port="MOCK_FANOUT_PORT", read_timeout=0.005)
         api = RotationStageAPI(manager)
-        manager.subscribe_telemetry(ui_callback, replay_latest=False)
-        api.subscribe_telemetry(api_callback, replay_latest=False)
+        manager.subscribe_telemetry(ui_callback, replay_latest=False, priority="low")
+        api.subscribe_telemetry(api_callback, replay_latest=False, priority="high")
 
         with patch.object(communication_manager_module, "serial", _SerialModuleStub(mock_serial)), patch.object(
             communication_manager_module,
@@ -119,6 +119,7 @@ class CommunicationManagerFanoutTests(unittest.TestCase):
         self.assertGreaterEqual(parsed_ns, receive_ns)
         self.assertGreaterEqual(ui_ns, parsed_ns)
         self.assertGreaterEqual(api_ns, parsed_ns)
+        self.assertLessEqual(api_ns, ui_ns)
 
         # Local in-process fan-out should be effectively immediate.
         self.assertLess((ui_ns - receive_ns) / 1_000_000, 50.0)

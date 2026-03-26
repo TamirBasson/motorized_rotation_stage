@@ -67,6 +67,31 @@ class TelemetryBusTests(unittest.TestCase):
 
         self.assertEqual(received, [sample])
 
+    def test_high_priority_subscribers_run_before_low_priority_subscribers(self) -> None:
+        bus = TelemetryBus()
+        call_order: list[str] = []
+
+        def high(_: TelemetryState) -> None:
+            call_order.append("api")
+
+        def low(_: TelemetryState) -> None:
+            call_order.append("ui")
+
+        bus.subscribe(low, priority="low")
+        bus.subscribe(high, priority="high")
+
+        sample = TelemetryState(
+            mechanical_angle_deg=2.0,
+            virtual_angle_deg=3.0,
+            running=True,
+            speed_deg_per_sec=1.0,
+            direction=MotionDirection.CW,
+            steps=50,
+        )
+        bus.publish(sample)
+
+        self.assertEqual(call_order, ["api", "ui"])
+
 
 if __name__ == "__main__":
     unittest.main()

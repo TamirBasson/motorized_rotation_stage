@@ -20,7 +20,7 @@ class SystemParametersPanel(ttk.Frame):
         )
 
         ttk.Label(self, text="Steps / Revolution", style="FieldLabel.TLabel").grid(row=1, column=0, sticky="w", pady=2)
-        ttk.Entry(self, textvariable=self._steps_per_rev, width=10).grid(row=1, column=1, sticky="ew", pady=2)
+        ttk.Entry(self, textvariable=self._steps_per_rev, width=10, state="readonly").grid(row=1, column=1, sticky="ew", pady=2)
 
         ttk.Label(self, text="Gear Ratio", style="FieldLabel.TLabel").grid(row=2, column=0, sticky="w", pady=2)
         ttk.Entry(self, textvariable=self._gear_ratio, width=10, state="readonly").grid(row=2, column=1, sticky="ew", pady=2)
@@ -38,3 +38,6 @@ class SystemParametersPanel(ttk.Frame):
 
     def get_virtual_zero_offset(self) -> float:
         return float(self._virtual_offset.get())
+
+    def set_virtual_zero_offset(self, value_deg: float) -> None:
+        self._virtual_offset.set(f"{value_deg:.2f}")

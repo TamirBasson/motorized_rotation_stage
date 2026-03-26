@@ -6,6 +6,7 @@ from pc_app.comm import (
     AckMessage,
     CommunicationManager,
     TelemetryState,
+    TelemetryPriority,
     TelemetrySubscription,
     auto_detect_controller_port,
     build_constant_rotate_command,
@@ -154,8 +155,13 @@ class RotationStageAPI:
         callback: Callable[[TelemetryState], None],
         *,
         replay_latest: bool = True,
+        priority: TelemetryPriority = "high",
     ) -> TelemetrySubscription:
-        return self._communication_manager.subscribe_telemetry(callback, replay_latest=replay_latest)
+        return self._communication_manager.subscribe_telemetry(
+            callback,
+            replay_latest=replay_latest,
+            priority=priority,
+        )
 
     def get_virtual_zero_offset_deg(self) -> float | None:
         return self._virtual_zero_offset_deg

@@ -47,6 +47,7 @@ def main() -> None:
 
 
 def _close(window: MainWindow, api: RotationStageAPI) -> None:
+    window.shutdown()
     api.stop()
     window.destroy()
 

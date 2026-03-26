@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 
+from pc_app.comm import TelemetryPriority, TelemetrySubscription
 from pc_app.comm.models import AckMessage, TelemetryState
 
 
@@ -34,5 +35,13 @@ class StageController(Protocol):
     def set_telemetry_rate(self, rate_hz: int, *, timeout: float = 1.0) -> AckMessage: ...
 
     def get_latest_telemetry(self) -> TelemetryState | None: ...
+
+    def subscribe_telemetry(
+        self,
+        callback: Callable[[TelemetryState], None],
+        *,
+        replay_latest: bool = True,
+        priority: TelemetryPriority = "high",
+    ) -> TelemetrySubscription: ...
 
     def get_virtual_zero_offset_deg(self) -> float | None: ...

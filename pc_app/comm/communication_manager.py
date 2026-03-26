@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 from pc_app.comm.models import AckMessage, ErrMessage, ParsedInboundMessage, TelemetryState
 from pc_app.comm.protocol import ProtocolError, parse_message
-from pc_app.comm.telemetry_bus import TelemetryBus, TelemetrySubscription
+from pc_app.comm.telemetry_bus import TelemetryBus, TelemetryPriority, TelemetrySubscription
 
 try:
     import serial
@@ -188,8 +188,9 @@ class CommunicationManager:
         callback: Callable[[TelemetryState], None],
         *,
         replay_latest: bool = True,
+        priority: TelemetryPriority = "high",
     ) -> TelemetrySubscription:
-        subscription = self._telemetry_bus.subscribe(callback)
+        subscription = self._telemetry_bus.subscribe(callback, priority=priority)
         if replay_latest:
             latest = self.get_latest_telemetry()
             if latest is not None:

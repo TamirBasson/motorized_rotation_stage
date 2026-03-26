@@ -4,6 +4,7 @@ import threading
 import time
 
 from pc_app.comm.models import AckMessage, MotionDirection, TelemetryState
+from pc_app.comm.telemetry_bus import TelemetryBus, TelemetryPriority, TelemetrySubscription
 from pc_app.ui.main_window import MainWindow
 
 
@@ -15,6 +16,7 @@ class PreviewController:
         self._running = True
         self._telemetry_rate_hz = 5
         self._virtual_zero_offset_deg = -12.5
+        self._telemetry_bus = TelemetryBus()
         self._telemetry = self._build_telemetry(
             mechanical_angle_deg=123.45,
             running=False,
@@ -53,6 +55,8 @@ class PreviewController:
                 direction=MotionDirection(direction),
                 steps=self._telemetry.steps + 200,
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_ABS", parameters=(f"{angle_deg:.2f}", f"{virt_zero_offset_deg:.2f}"))
 
     def constant_rotate(self, speed_deg_per_sec: float, direction: str, *, timeout: float = 1.0) -> AckMessage:
@@ -65,6 +69,8 @@ class PreviewController:
                 direction=MotionDirection(direction),
                 steps=self._telemetry.steps,
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_CONST", parameters=(f"{speed_deg_per_sec:.2f}", direction))
 
     def rotate_relative(self, delta_angle_deg: float, speed_deg_per_sec: float, *, timeout: float = 1.0) -> AckMessage:
@@ -78,6 +84,8 @@ class PreviewController:
                 direction=direction,
                 steps=self._telemetry.steps + int(abs(delta_angle_deg) * 10),
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_REL", parameters=(f"{delta_angle_deg:.2f}", f"{speed_deg_per_sec:.2f}"))
 
     def rotate_mechanical_zero(self, *, timeout: float = 1.0) -> AckMessage:
@@ -90,6 +98,8 @@ class PreviewController:
                 direction=MotionDirection.CW,
                 steps=0,
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_HOME", parameters=())
 
     def rotate_virtual_zero(self, virt_zero_offset_deg: float, *, timeout: float = 1.0) -> AckMessage:
@@ -105,6 +115,8 @@ class PreviewController:
                 direction=self._telemetry.direction,
                 steps=self._telemetry.steps + 100,
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="ROT_VZERO", parameters=(f"{virt_zero_offset_deg:.2f}",))
 
     def stop_rotation(self, *, timeout: float = 1.0) -> AckMessage:
@@ -117,6 +129,8 @@ class PreviewController:
                 direction=MotionDirection.CW,
                 steps=self._telemetry.steps,
             )
+            telemetry = self._telemetry
+        self._telemetry_bus.publish(telemetry)
         return AckMessage(command_type="STOP", parameters=())
 
     def set_telemetry_rate(self, rate_hz: int, *, timeout: float = 1.0) -> AckMessage:
@@ -128,6 +142,18 @@ class PreviewController:
     def get_latest_telemetry(self) -> TelemetryState:
         with self._lock:
             return self._telemetry
+
+    def subscribe_telemetry(
+        self,
+        callback,
+        *,
+        replay_latest: bool = True,
+        priority: TelemetryPriority = "high",
+    ) -> TelemetrySubscription:
+        subscription = self._telemetry_bus.subscribe(callback, priority=priority)
+        if replay_latest:
+            callback(self.get_latest_telemetry())
+        return subscription
 
     def get_virtual_zero_offset_deg(self) -> float:
         with self._lock:
@@ -150,6 +176,8 @@ class PreviewController:
                     direction=self._telemetry.direction,
                     steps=self._telemetry.steps + step_increment,
                 )
+                telemetry = self._telemetry
+            self._telemetry_bus.publish(telemetry)
 
     def _build_telemetry(
         self,
@@ -192,6 +220,7 @@ def main() -> None:
 
 
 def _close(window: MainWindow, controller: PreviewController) -> None:
+    window.shutdown()
     controller.shutdown()
     window.destroy()
 
