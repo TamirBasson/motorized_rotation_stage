@@ -25,7 +25,7 @@ class ReferenceSafetyPanel(ttk.Frame):
 
     def _build(self) -> None:
         ttk.Label(self, text="Reference and Safety", style="PanelTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(self, text="Virtual Zero Offset (deg)", style="FieldLabel.TLabel").grid(
+        ttk.Label(self, text="Virtual Zero Reference (deg)", style="FieldLabel.TLabel").grid(
             row=1,
             column=0,
             sticky="w",

@@ -25,7 +25,7 @@ class SystemParametersPanel(ttk.Frame):
         ttk.Label(self, text="Gear Ratio", style="FieldLabel.TLabel").grid(row=2, column=0, sticky="w", pady=2)
         ttk.Entry(self, textvariable=self._gear_ratio, width=10, state="readonly").grid(row=2, column=1, sticky="ew", pady=2)
 
-        ttk.Label(self, text="Virtual Zero Offset (deg)", style="FieldLabel.TLabel").grid(row=3, column=0, sticky="w", pady=2)
+        ttk.Label(self, text="Virtual Zero Reference (deg)", style="FieldLabel.TLabel").grid(row=3, column=0, sticky="w", pady=2)
         ttk.Entry(self, textvariable=self._virtual_offset, width=10).grid(row=3, column=1, sticky="ew", pady=2)
 
         self.columnconfigure(1, weight=1)

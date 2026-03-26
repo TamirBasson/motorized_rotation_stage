@@ -44,7 +44,8 @@ def main() -> None:
         #
         # Meaning of the parameters:
         # - angle_deg: requested destination angle
-        # - virt_zero_offset_deg: software offset used to define virtual zero
+        # - virt_zero_offset_deg: Virtual Zero Reference (same parameter as protocol / firmware).
+        #   Mechanical = Virtual + Reference, so Virtual = Mechanical − Reference.
         # - speed_deg_per_sec: commanded angular speed
         # - direction: preferred motion direction ("CW" or "CCW")
         #

@@ -170,6 +170,11 @@ Field definitions:
 5. direction: `CW` or `CCW` (when not running, repeats the last motion direction, default `CW`)
 6. current steps count
 
+Relationship (angles normalized to 0–360°):
+
+- Mechanical angle = Virtual angle + Virtual Zero Reference (the offset parameter carried in `ROT_ABS` / `ROT_VZERO` commands)
+- Virtual angle = Mechanical angle − Virtual Zero Reference
+
 Example:
 `TLM,123.45,110.95,1,5.00,CW,9876`
 

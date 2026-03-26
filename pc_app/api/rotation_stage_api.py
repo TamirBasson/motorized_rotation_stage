@@ -22,7 +22,11 @@ if TYPE_CHECKING:
 
 
 class RotationStageAPI:
-    """High-level Python API that routes all communication through the manager."""
+    """High-level Python API that routes all communication through the manager.
+
+    Telemetry from the controller follows: Virtual Degree = Mechanical Degree − Virtual Zero Reference,
+    and equivalently Mechanical Degree = Virtual Degree + Virtual Zero Reference (angles normalized to 0–360°).
+    """
 
     def __init__(self, communication_manager: CommunicationManager) -> None:
         self._communication_manager = communication_manager

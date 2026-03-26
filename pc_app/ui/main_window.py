@@ -113,16 +113,11 @@ class MainWindow(tk.Tk):
             sticky="w",
         )
         explanation = (
-            "Mechanical Degree is the true physical angle "
-            "of the stage, derived from step count, "
-            "steps-per-revolution, and gear ratio. "
-            "It resets only via the hardware "
-            "mechanical-zero sensor.\n\n"
-            "Virtual Degree = Mechanical + Offset.\n"
-            "The offset is a user-defined constant that "
-            "shifts the reference frame without moving "
-            "the stage. Use it to align the display with "
-            "your experiment coordinate system."
+            "Mechanical Degree is the physical angle of the stage.\n\n"
+            "Virtual Degree is defined relative to a user-defined virtual zero reference.\n\n"
+            "Mechanical Degree = Virtual Degree + Virtual Zero Reference\n\n"
+            "Therefore:\n"
+            "Virtual Degree = Mechanical Degree − Virtual Zero Reference"
         )
         ttk.Label(
             info,

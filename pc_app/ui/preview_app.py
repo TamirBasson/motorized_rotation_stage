@@ -41,8 +41,13 @@ class PreviewController:
         del timeout
         with self._lock:
             self._virtual_zero_offset_deg = virt_zero_offset_deg
+            # Absolute commands are expressed in the virtual frame, so convert to the
+            # corresponding mechanical target before updating preview telemetry.
+            target_mechanical_deg = _normalize_angle_360(
+                angle_deg + self._virtual_zero_offset_deg,
+            )
             self._telemetry = self._build_telemetry(
-                mechanical_angle_deg=angle_deg,
+                mechanical_angle_deg=target_mechanical_deg,
                 running=True,
                 speed_deg_per_sec=speed_deg_per_sec,
                 direction=MotionDirection(direction),
@@ -91,7 +96,8 @@ class PreviewController:
         del timeout
         with self._lock:
             self._virtual_zero_offset_deg = virt_zero_offset_deg
-            target_mechanical_deg = (-virt_zero_offset_deg) % 360.0
+            # Virtual = 0 when Mechanical equals the configured reference (firmware behavior).
+            target_mechanical_deg = _normalize_angle_360(virt_zero_offset_deg)
             self._telemetry = self._build_telemetry(
                 mechanical_angle_deg=target_mechanical_deg,
                 running=True,
@@ -154,8 +160,11 @@ class PreviewController:
         direction: MotionDirection,
         steps: int,
     ) -> TelemetryState:
-        normalized_mechanical = mechanical_angle_deg % 360.0
-        virtual_angle_deg = (normalized_mechanical + self._virtual_zero_offset_deg) % 360.0
+        normalized_mechanical = _normalize_angle_360(mechanical_angle_deg)
+        # Matches firmware: Virtual = Mechanical − Virtual Zero Reference
+        virtual_angle_deg = _normalize_angle_360(
+            normalized_mechanical - self._virtual_zero_offset_deg,
+        )
         return TelemetryState(
             mechanical_angle_deg=normalized_mechanical,
             virtual_angle_deg=virtual_angle_deg,
@@ -164,6 +173,15 @@ class PreviewController:
             direction=direction,
             steps=steps,
         )
+
+
+def _normalize_angle_360(angle_deg: float) -> float:
+    wrapped = angle_deg % 360.0
+    if wrapped < 0.0:
+        wrapped += 360.0
+    if wrapped >= 360.0:
+        wrapped -= 360.0
+    return wrapped
 
 
 def main() -> None:

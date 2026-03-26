@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from pc_app.comm.models import TelemetryState
+from pc_app.ui.tooltip import add_tooltip
 
 
 class TelemetryView(ttk.Frame):
@@ -32,8 +33,28 @@ class TelemetryView(ttk.Frame):
         hero.columnconfigure(0, weight=1)
         hero.columnconfigure(1, weight=1)
 
-        self._build_value_card(hero, 0, "Mechanical Degree", "mechanical_angle_deg", hero_value=True)
-        self._build_value_card(hero, 1, "Virtual Degree", "virtual_angle_deg", hero_value=True)
+        self._build_value_card(
+            hero,
+            0,
+            "Mechanical Degree",
+            "mechanical_angle_deg",
+            hero_value=True,
+            tooltip=(
+                "Physical angle of the stage from step count and configuration. "
+                "Mechanical = Virtual + Virtual Zero Reference."
+            ),
+        )
+        self._build_value_card(
+            hero,
+            1,
+            "Virtual Degree",
+            "virtual_angle_deg",
+            hero_value=True,
+            tooltip=(
+                "Angle in the user-defined virtual frame. "
+                "Virtual = Mechanical − Virtual Zero Reference."
+            ),
+        )
 
         metrics = ttk.Frame(self, style="Panel.TFrame")
         metrics.grid(row=3, column=0, sticky="ew", pady=(8, 0))
@@ -46,10 +67,22 @@ class TelemetryView(ttk.Frame):
 
         self.columnconfigure(0, weight=1)
 
-    def _build_value_card(self, parent: ttk.Frame, column: int, label_text: str, key: str, hero_value: bool = False) -> None:
+    def _build_value_card(
+        self,
+        parent: ttk.Frame,
+        column: int,
+        label_text: str,
+        key: str,
+        hero_value: bool = False,
+        *,
+        tooltip: str | None = None,
+    ) -> None:
         card = ttk.Frame(parent, padding=12, style="Card.TFrame")
         card.grid(row=0, column=column, sticky="nsew", padx=(0, 6) if column == 0 else (6, 0))
-        ttk.Label(card, text=label_text, style="ValueLabel.TLabel").grid(row=0, column=0, sticky="w")
+        title = ttk.Label(card, text=label_text, style="ValueLabel.TLabel")
+        title.grid(row=0, column=0, sticky="w")
+        if tooltip:
+            add_tooltip(title, tooltip)
         ttk.Label(
             card,
             textvariable=self._values[key],

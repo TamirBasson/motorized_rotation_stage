@@ -7,6 +7,19 @@ from pc_app.ui.telemetry_view import TelemetryView
 
 
 class UiPreviewTests(unittest.TestCase):
+    def test_preview_rotate_absolute_uses_virtual_reference_definition(self) -> None:
+        controller = PreviewController()
+        try:
+            controller.rotate_absolute(120.0, -15.0, 5.0, "CW")
+            telemetry = controller.get_latest_telemetry()
+        finally:
+            controller.shutdown()
+
+        expected_mechanical = (120.0 + (-15.0)) % 360.0
+        expected_virtual = (expected_mechanical - (-15.0)) % 360.0
+        self.assertAlmostEqual(telemetry.mechanical_angle_deg, expected_mechanical)
+        self.assertAlmostEqual(telemetry.virtual_angle_deg, expected_virtual)
+
     def test_preview_controller_updates_telemetry(self) -> None:
         controller = PreviewController()
         try:
@@ -20,7 +33,10 @@ class UiPreviewTests(unittest.TestCase):
         self.assertFalse(before.running)
         self.assertTrue(after.running)
         self.assertEqual(after.direction, MotionDirection.CW)
-        self.assertAlmostEqual(after.virtual_angle_deg, (after.mechanical_angle_deg - 15.0) % 360.0)
+        # Firmware convention: Virtual = Mechanical − Virtual Zero Reference (here reference = −15°).
+        reference_deg = -15.0
+        expected_virtual = (after.mechanical_angle_deg - reference_deg) % 360.0
+        self.assertAlmostEqual(after.virtual_angle_deg, expected_virtual)
 
     def test_telemetry_view_renders_values(self) -> None:
         root = None
