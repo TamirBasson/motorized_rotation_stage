@@ -8,14 +8,17 @@ echo Starting Motion Control Dashboard...
 echo.
 
 set "PYTHON_CMD="
+set "PIP_INSTALL_CMD="
 
 where py >nul 2>nul
 if %ERRORLEVEL%==0 (
     set "PYTHON_CMD=py -3"
+    set "PIP_INSTALL_CMD=py -3 -m pip install -r requirements.txt"
 ) else (
     where python >nul 2>nul
     if %ERRORLEVEL%==0 (
         set "PYTHON_CMD=python"
+        set "PIP_INSTALL_CMD=python -m pip install -r requirements.txt"
     )
 )
 
@@ -29,11 +32,33 @@ if not defined PYTHON_CMD (
 
 %PYTHON_CMD% -c "import serial" >nul 2>nul
 if errorlevel 1 (
-    echo ERROR: Required Python dependency "pyserial" is not installed.
-    echo Run: pip install -r requirements.txt
+    echo Required Python dependency "pyserial" is not installed.
+    echo Attempting to install requirements automatically...
     echo.
-    pause
-    exit /b 1
+    %PIP_INSTALL_CMD%
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Automatic dependency installation failed.
+        echo Please run: %PIP_INSTALL_CMD%
+        echo.
+        pause
+        exit /b 1
+    )
+
+    %PYTHON_CMD% -c "import serial" >nul 2>nul
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Requirements were installed, but "pyserial" is still unavailable.
+        echo Please run: %PIP_INSTALL_CMD%
+        echo.
+        pause
+        exit /b 1
+    )
+
+    echo.
+    echo Requirements installed successfully.
+    echo Restarting launch with the updated environment...
+    echo.
 )
 
 echo Launching the real hardware UI...

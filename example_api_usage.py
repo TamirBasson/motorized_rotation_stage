@@ -26,6 +26,11 @@ def main() -> None:
         api = RotationStageAPI.from_serial_port(port, baudrate=args.baudrate)
         print(f"Connecting to controller on {port} at {args.baudrate} baud...")
         api.start()
+        if args.connect_settle_seconds > 0:
+            # Many Arduino boards reset when the serial port opens.
+            # Give the firmware a moment to boot before sending the first command.
+            print(f"Waiting {args.connect_settle_seconds:.1f}s for controller startup...")
+            time.sleep(args.connect_settle_seconds)
 
         # Subscribe once to live telemetry so every movement example prints the
         # current stage state as the controller reports it.
@@ -61,7 +66,7 @@ def main() -> None:
                 direction="CW",
             )
         )
-        time.sleep(2.0)
+        time.sleep(20.0)
 
         # ---------------------------------------------------------------------
         # Example 2: Relative move
@@ -73,7 +78,7 @@ def main() -> None:
         # direction. This is useful for scan patterns and incremental adjustment.
         print("\n=== Example 2: Relative move ===")
         print(api.rotate_relative(delta_angle_deg=45.0, speed_deg_per_sec=3.0, direction="CCW"))
-        time.sleep(2.0)
+        time.sleep(20.0)
 
         # ---------------------------------------------------------------------
         # Example 3: Continuous rotation
@@ -86,7 +91,7 @@ def main() -> None:
         # where the stage should keep rotating instead of stopping at a target.
         print("\n=== Example 3: Continuous rotation ===")
         print(api.constant_rotate(speed_deg_per_sec=2.5, direction="CCW"))
-        time.sleep(3.0)
+        time.sleep(30.0)
 
         # Stop the stage after the continuous rotation example.
         print("\nStopping motion...")
@@ -140,6 +145,12 @@ def _parse_args() -> argparse.Namespace:
         help='Optional serial port for the controller, for example "COM3". If omitted, the script auto-detects it.',
     )
     parser.add_argument("--baudrate", type=int, default=115200, help="Serial baud rate")
+    parser.add_argument(
+        "--connect-settle-seconds",
+        type=float,
+        default=2.5,
+        help="Delay after opening the serial port to allow the controller to reboot and start up",
+    )
     parser.add_argument(
         "--telemetry-rate",
         type=int,
