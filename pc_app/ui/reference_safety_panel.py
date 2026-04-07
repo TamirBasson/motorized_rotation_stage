@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+from pc_app.comm.remote_client import CommandQueuedError
 from pc_app.ui.controller_interface import StageController
 
 
@@ -66,6 +67,13 @@ class ReferenceSafetyPanel(ttk.Frame):
         try:
             self._status_callback("Command In Progress", "Sending command to the controller preview.", "warning")
             ack = action()
+        except CommandQueuedError as exc:
+            self._status_callback(
+                "Command Queued",
+                f"{exc} Queue position: {exc.queue_position}.",
+                "warning",
+            )
+            return
         except Exception as exc:
             self._status_callback("Command Failed", str(exc), "error")
             return

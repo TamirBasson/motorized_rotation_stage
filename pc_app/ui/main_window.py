@@ -5,6 +5,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
+from pc_app.comm.remote_client import CommandQueuedError
 from pc_app.comm.models import TelemetryState
 from pc_app.ui.control_panel import ControlPanel
 from pc_app.ui.controller_interface import StageController
@@ -234,6 +235,15 @@ class MainWindow(tk.Tk):
                 value_deg = float(value_var.get())
                 self._params_panel.set_virtual_zero_offset(value_deg)
                 self._controller.rotate_virtual_zero(value_deg)
+            except CommandQueuedError as exc:
+                self.set_status(
+                    "Virtual Zero Queued",
+                    f"{exc} Queue position: {exc.queue_position}. The UI will keep updating telemetry while the API owns control.",
+                    "warning",
+                )
+                confirmed.set(True)
+                dialog.destroy()
+                return
             except Exception as exc:
                 message_var.set(f"Invalid or rejected value: {exc}")
                 return

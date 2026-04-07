@@ -6,7 +6,8 @@ import sys
 import time
 
 from pc_app.api.rotation_stage_api import RotationStageAPI
-from pc_app.comm import CommunicationError, TelemetryState, auto_detect_controller_port
+from pc_app.comm import CommunicationError, TelemetryState
+from pc_app.comm.remote_server import DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 
 
 def main() -> None:
@@ -18,19 +19,29 @@ def main() -> None:
 
     try:
         args = _parse_args()
-        port = args.port
-        if port is None:
-            port = auto_detect_controller_port()
-            print(f"Auto-detected controller serial port: {port}")
-
-        api = RotationStageAPI.from_serial_port(port, baudrate=args.baudrate)
-        print(f"Connecting to controller on {port} at {args.baudrate} baud...")
-        api.start()
-        if args.connect_settle_seconds > 0:
-            # Many Arduino boards reset when the serial port opens.
-            # Give the firmware a moment to boot before sending the first command.
-            print(f"Waiting {args.connect_settle_seconds:.1f}s for controller startup...")
-            time.sleep(args.connect_settle_seconds)
+        if args.direct:
+            if args.port is None:
+                raise CommunicationError("Direct mode requires an explicit controller serial port, for example COM5.")
+            api = RotationStageAPI.from_serial_port(args.port, baudrate=args.baudrate)
+            print(f"Connecting directly to controller on {args.port} at {args.baudrate} baud...")
+            api.start()
+            if args.connect_settle_seconds > 0:
+                # Many Arduino boards reset when the serial port opens.
+                # Give the firmware a moment to boot before sending the first command.
+                print(f"Waiting {args.connect_settle_seconds:.1f}s for controller startup...")
+                time.sleep(args.connect_settle_seconds)
+        else:
+            api = RotationStageAPI.from_server(
+                host=args.server_host,
+                port=args.server_port,
+                client_name="Example API Client",
+                auto_acquire_control=args.acquire_control,
+                connect_timeout=args.connect_timeout,
+            )
+            print(f"Connecting to shared communication server at {args.server_host}:{args.server_port}...")
+            api.start()
+            if args.acquire_control:
+                print("API control lease acquired. UI motion commands will queue until this script exits.")
 
         # Subscribe once to live telemetry so every movement example prints the
         # current stage state as the controller reports it.
@@ -104,8 +115,8 @@ def main() -> None:
     except CommunicationError as exc:
         print(f"API example failed: {exc}", file=sys.stderr)
         print(
-            "If the Arduino is connected, verify that it appears as a USB serial port "
-            "and pass the port explicitly if auto-detection is ambiguous.",
+            "Make sure the shared server is running (for example by opening the UI first), "
+            "or use --direct COMx for direct serial troubleshooting.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -142,14 +153,33 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "port",
         nargs="?",
-        help='Optional serial port for the controller, for example "COM3". If omitted, the script auto-detects it.',
+        help='Optional serial port for direct mode, for example "COM3". Ignored when using the shared server.',
     )
     parser.add_argument("--baudrate", type=int, default=115200, help="Serial baud rate")
+    parser.add_argument(
+        "--direct",
+        action="store_true",
+        help="Bypass the shared server and open the serial port directly (debug/troubleshooting only)",
+    )
     parser.add_argument(
         "--connect-settle-seconds",
         type=float,
         default=2.5,
-        help="Delay after opening the serial port to allow the controller to reboot and start up",
+        help="Delay after opening the serial port in direct mode to allow the controller to reboot and start up",
+    )
+    parser.add_argument("--server-host", default=DEFAULT_SERVER_HOST, help="Shared communication server host")
+    parser.add_argument("--server-port", type=int, default=DEFAULT_SERVER_PORT, help="Shared communication server TCP port")
+    parser.add_argument(
+        "--connect-timeout",
+        type=float,
+        default=2.0,
+        help="Timeout in seconds when connecting to the shared communication server",
+    )
+    parser.add_argument(
+        "--acquire-control",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Acquire API-priority control while this script runs",
     )
     parser.add_argument(
         "--telemetry-rate",

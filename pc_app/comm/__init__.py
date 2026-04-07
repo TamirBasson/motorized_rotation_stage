@@ -17,6 +17,8 @@ from pc_app.comm.protocol import (
     parse_message,
 )
 from pc_app.comm.port_detection import auto_detect_controller_port, list_serial_ports
+from pc_app.comm.remote_client import CommandQueuedError, RemoteCommunicationClient
+from pc_app.comm.remote_server import DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, RemoteCommunicationServer
 from pc_app.comm.telemetry_bus import TelemetryBus, TelemetryPriority, TelemetrySubscription
 
 __all__ = [
@@ -24,12 +26,17 @@ __all__ = [
     "auto_detect_controller_port",
     "CommunicationError",
     "CommunicationManager",
+    "CommandQueuedError",
+    "DEFAULT_SERVER_HOST",
+    "DEFAULT_SERVER_PORT",
     "DeviceErrorResponse",
     "ErrMessage",
     "list_serial_ports",
     "MotionDirection",
     "ParsedInboundMessage",
     "ProtocolError",
+    "RemoteCommunicationClient",
+    "RemoteCommunicationServer",
     "ResponseTimeoutError",
     "TelemetryBus",
     "TelemetryPriority",
