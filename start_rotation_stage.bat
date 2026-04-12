@@ -10,16 +10,21 @@ echo.
 set "PYTHON_CMD="
 set "PIP_INSTALL_CMD="
 
-where py >nul 2>nul
-if %ERRORLEVEL%==0 (
+REM Use chained checks (not nested "if %%ERRORLEVEL%%" inside else blocks). In CMD,
+REM %%ERRORLEVEL%% inside parenthesized blocks is expanded at parse time, so after
+REM "where py" fails the inner "where python" success is invisible to "if %%ERRORLEVEL%%==0".
+
+where py >nul 2>nul && (
     set "PYTHON_CMD=py -3"
     set "PIP_INSTALL_CMD=py -3 -m pip install -r requirements.txt"
-) else (
-    where python >nul 2>nul
-    if %ERRORLEVEL%==0 (
-        set "PYTHON_CMD=python"
-        set "PIP_INSTALL_CMD=python -m pip install -r requirements.txt"
-    )
+)
+if not defined PYTHON_CMD where python >nul 2>nul && (
+    set "PYTHON_CMD=python"
+    set "PIP_INSTALL_CMD=python -m pip install -r requirements.txt"
+)
+if not defined PYTHON_CMD where python3 >nul 2>nul && (
+    set "PYTHON_CMD=python3"
+    set "PIP_INSTALL_CMD=python3 -m pip install -r requirements.txt"
 )
 
 if not defined PYTHON_CMD (
