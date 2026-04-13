@@ -17,6 +17,8 @@ constexpr uint8_t homePin = 7;
 
 constexpr bool dirPinHighCountsUp = true;      // Positive steps = CW in protocol space.
 constexpr bool homeInputIsActiveLow = true;
+constexpr unsigned long homeSensorDebounceMs = 20UL;
+constexpr unsigned long homeSensorLogIntervalMs = 100UL;
 
 constexpr size_t serialBufferLength = 96;
 constexpr uint8_t maxCsvFields = 8;
@@ -70,6 +72,8 @@ struct RuntimeState {
   int32_t homeSearchStartSteps = 0;
   uint16_t telemetryRateHz = 0;
   unsigned long lastTelemetryMs = 0;
+  unsigned long homeSensorActiveSinceMs = 0;
+  unsigned long lastHomeSensorLogMs = 0;
 };
 
 // ================================
@@ -142,9 +146,47 @@ bool valueInRange(float value, float minValue, float maxValue) {
   return value >= minValue && value <= maxValue;
 }
 
+int readHomeSensorRaw() {
+  return digitalRead(homePin);
+}
+
+bool homeSensorActiveFromRaw(int rawPinState) {
+  const bool rawHigh = rawPinState == HIGH;
+  return homeInputIsActiveLow ? !rawHigh : rawHigh;
+}
+
 bool homeSensorActive() {
-  const bool rawState = digitalRead(homePin) == HIGH;
-  return homeInputIsActiveLow ? !rawState : rawState;
+  return homeSensorActiveFromRaw(readHomeSensorRaw());
+}
+
+void logHomeSensorState(const __FlashStringHelper *context, int rawPinState, bool sensorActive) {
+  Serial.print(F("DBG,HOME,"));
+  Serial.print(context);
+  Serial.print(F(",raw="));
+  Serial.print(rawPinState);
+  Serial.print(F(",active="));
+  Serial.print(sensorActive ? 1 : 0);
+  Serial.print(F(",pos_steps="));
+  Serial.println(g_stepper != nullptr ? g_stepper->getCurrentPosition() : 0);
+}
+
+void resetHomeSensorHomingState() {
+  g_runtime.homeSensorActiveSinceMs = 0;
+  g_runtime.lastHomeSensorLogMs = 0;
+}
+
+bool homeSensorActiveStable(unsigned long nowMs, bool sensorActive) {
+  if (!sensorActive) {
+    g_runtime.homeSensorActiveSinceMs = 0;
+    return false;
+  }
+
+  if (g_runtime.homeSensorActiveSinceMs == 0) {
+    g_runtime.homeSensorActiveSinceMs = nowMs;
+    return false;
+  }
+
+  return (nowMs - g_runtime.homeSensorActiveSinceMs) >= homeSensorDebounceMs;
 }
 
 const char *directionToText(MotionDirection direction) {
@@ -440,8 +482,13 @@ bool startMechanicalHoming(float speedDegPerSec) {
   }
 
   preemptCurrentMotion();
+  resetHomeSensorHomingState();
 
-  if (homeSensorActive()) {
+  const int rawHomeState = readHomeSensorRaw();
+  const bool sensorActive = homeSensorActiveFromRaw(rawHomeState);
+  logHomeSensorState(F("ROT_HOME_START"), rawHomeState, sensorActive);
+
+  if (sensorActive) {
     // If the switch is already active, we can define the current position as zero immediately.
     g_stepper->setCurrentPosition(0);
     clearMotionState(ControllerState::IDLE);
@@ -733,9 +780,21 @@ void updateMotionState() {
   }
 
   if (g_runtime.state == ControllerState::HOMING_MECHANICAL_ZERO) {
-    if (homeSensorActive()) {
+    const unsigned long nowMs = millis();
+    const int rawHomeState = readHomeSensorRaw();
+    const bool sensorActive = homeSensorActiveFromRaw(rawHomeState);
+    if ((g_runtime.lastHomeSensorLogMs == 0) ||
+        ((nowMs - g_runtime.lastHomeSensorLogMs) >= homeSensorLogIntervalMs) ||
+        sensorActive) {
+      logHomeSensorState(F("ROT_HOME_LOOP"), rawHomeState, sensorActive);
+      g_runtime.lastHomeSensorLogMs = nowMs;
+    }
+
+    if (homeSensorActiveStable(nowMs, sensorActive)) {
+      logHomeSensorState(F("ROT_HOME_CONFIRMED"), rawHomeState, sensorActive);
       // The home switch defines mechanical zero, so we stop and rebase step position to 0.
       g_stepper->forceStopAndNewPosition(0);
+      resetHomeSensorHomingState();
       clearMotionState(ControllerState::IDLE);
       return;
     }
@@ -744,6 +803,7 @@ void updateMotionState() {
     const int32_t traveledSteps = (traveledDelta >= 0) ? traveledDelta : -traveledDelta;
     if (traveledSteps >= degreesToSteps(360.0f)) {
       g_stepper->forceStop();
+      resetHomeSensorHomingState();
       clearMotionState(ControllerState::ERROR);
       sendErr("ZERO_NOT_FOUND", "ROT_HOME");
       return;
@@ -795,6 +855,9 @@ void setup() {
   pinMode(homePin, homeInputIsActiveLow ? INPUT_PULLUP : INPUT);
 
   Serial.begin(serialBaud);
+  const int rawHomeState = readHomeSensorRaw();
+  const bool sensorActive = homeSensorActiveFromRaw(rawHomeState);
+  logHomeSensorState(F("SETUP"), rawHomeState, sensorActive);
 
   // The engine object configures the timer-based step generation used by FastAccelStepper.
   g_stepperEngine.init();
@@ -804,7 +867,7 @@ void setup() {
     g_stepper->setDirectionPin(dirPin, dirPinHighCountsUp);
     configureMotionProfile(defaultSeekSpeedDegPerSec);
 
-    if (homeSensorActive()) {
+    if (sensorActive) {
       g_stepper->setCurrentPosition(0);
     }
   } else {

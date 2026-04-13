@@ -14,7 +14,7 @@ def add_tooltip(widget: tk.Misc, text: str) -> None:
             return
         tip = tk.Toplevel(widget)
         tip.wm_overrideredirect(True)
-        tip.wmattributes("-topmost", True)
+        tip.wm_attributes("-topmost", True)
         x = widget.winfo_rootx() + 20
         y = widget.winfo_rooty() + widget.winfo_height() + 4
         tip.wm_geometry(f"+{x}+{y}")
