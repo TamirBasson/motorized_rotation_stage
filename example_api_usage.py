@@ -53,6 +53,20 @@ def main() -> None:
         print(f"Telemetry configured: {ack}")
 
         # ---------------------------------------------------------------------
+        # Initialization: mechanical zero first, then virtual zero reference
+        # ---------------------------------------------------------------------
+        
+        virtual_zero_offset_deg = 0.0
+        
+        # print("\n=== Initialization: Mechanical zero -> Virtual zero reference ===")
+        # print("Rotating CCW to mechanical zero...")
+        # print(api.rotate_mechanical_zero())
+        # _wait_for_motion_completion(api, label="Mechanical homing")
+        # print(f"Applying virtual zero reference: {virtual_zero_offset_deg:.2f} deg")
+        # print(api.rotate_virtual_zero(virtual_zero_offset_deg))
+        # _wait_for_motion_completion(api, label="Virtual zero alignment")
+
+        # ---------------------------------------------------------------------
         # Example 1: Absolute move
         # ---------------------------------------------------------------------
         # Goal:
@@ -72,12 +86,12 @@ def main() -> None:
         print(
             api.rotate_absolute(
                 angle_deg=120.0,
-                virt_zero_offset_deg=-12.5,
+                virt_zero_offset_deg=virtual_zero_offset_deg,
                 speed_deg_per_sec=5.0,
                 direction="CW",
             )
         )
-        time.sleep(20.0)
+        time.sleep(50.0) # Wait for the move to complete !!!!!
 
         # ---------------------------------------------------------------------
         # Example 2: Relative move
@@ -89,7 +103,7 @@ def main() -> None:
         # direction. This is useful for scan patterns and incremental adjustment.
         print("\n=== Example 2: Relative move ===")
         print(api.rotate_relative(delta_angle_deg=45.0, speed_deg_per_sec=3.0, direction="CCW"))
-        time.sleep(20.0)
+        time.sleep(20.0) # Wait for the move to complete !!!!!
 
         # ---------------------------------------------------------------------
         # Example 3: Continuous rotation
@@ -100,7 +114,7 @@ def main() -> None:
         #
         # This mode is useful for endurance tests, scanning, or any experiment
         # where the stage should keep rotating instead of stopping at a target.
-        print("\n=== Example 3: Continuous rotation ===")
+        # print("\n=== Example 3: Continuous rotation ===")
         print(api.constant_rotate(speed_deg_per_sec=2.5, direction="CCW"))
         time.sleep(30.0)
 
@@ -146,6 +160,27 @@ def _print_telemetry(telemetry: TelemetryState) -> None:
     )
 
 
+def _wait_for_motion_completion(
+    api: RotationStageAPI,
+    *,
+    label: str,
+    timeout_seconds: float = 90.0,
+    poll_interval_seconds: float = 0.1,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    motion_seen = False
+    while time.monotonic() < deadline:
+        telemetry = api.get_latest_telemetry()
+        if telemetry is not None:
+            if telemetry.running:
+                motion_seen = True
+            elif motion_seen:
+                print(f"{label} complete: {telemetry}")
+                return
+        time.sleep(poll_interval_seconds)
+    raise TimeoutError(f"{label} did not complete within {timeout_seconds:.1f}s")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Example script showing absolute, relative, and continuous motion API usage.",
@@ -184,7 +219,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--telemetry-rate",
         type=int,
-        default=5,
+        default=20,
         help="Telemetry rate in Hz (-1 immediate, 0 off, 1..100 cyclic)",
     )
     return parser.parse_args()
