@@ -18,6 +18,8 @@ class MainWindow(tk.Tk):
     CONTROLLER_TELEMETRY_RATE_HZ = 20
     UI_REFRESH_RATE_HZ = 5
     REFRESH_INTERVAL_MS = int(1000 / UI_REFRESH_RATE_HZ)
+    HOMING_POLL_INTERVAL_MS = 100
+    MECHANICAL_ZERO_TOLERANCE_DEG = 0.05
     ICON_PATH = Path(__file__).resolve().parents[2] / "assets" / "SvE6bWoR_400x400.png"
 
     def __init__(self, controller: StageController) -> None:
@@ -199,10 +201,18 @@ class MainWindow(tk.Tk):
             self._telemetry_subscription.unsubscribe()
             self._telemetry_subscription = None
 
+    @staticmethod
+    def _startup_homing_finished(telemetry: TelemetryState | None, homing_motion_seen: bool) -> bool:
+        if telemetry is None or telemetry.running:
+            return False
+        if homing_motion_seen:
+            return True
+        return abs(telemetry.mechanical_angle_deg) <= MainWindow.MECHANICAL_ZERO_TOLERANCE_DEG
+
     def _initialize_virtual_zero_on_startup(self) -> bool:
-        """Block normal operation until virtual zero reference is defined."""
+        """Home to mechanical zero first, then block until virtual zero is defined."""
         dialog = tk.Toplevel(self)
-        dialog.title("Initialize Virtual Zero")
+        dialog.title("Initialize Stage")
         dialog.transient(self)
         dialog.grab_set()
         dialog.resizable(False, False)
@@ -210,27 +220,87 @@ class MainWindow(tk.Tk):
         value_var = tk.StringVar(value=f"{self._params_panel.get_virtual_zero_offset():.2f}")
         confirmed = tk.BooleanVar(value=False)
         cancelled = tk.BooleanVar(value=False)
+        homing_complete = tk.BooleanVar(value=False)
+        homing_motion_seen = False
+        homing_poll_id: str | None = None
 
         frame = ttk.Frame(dialog, padding=14, style="Panel.TFrame")
         frame.grid(row=0, column=0, sticky="nsew")
-        ttk.Label(frame, text="Set Virtual Zero Reference", style="SectionTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(frame, text="Initialize Stage Reference", style="SectionTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Label(
             frame,
             text=(
-                "Before operating the stage, define the Virtual Zero Reference (deg).\n"
-                "This synchronizes the Mechanical and Virtual angle frames."
+                "The stage must first rotate CCW until it reaches mechanical zero.\n"
+                "After homing completes, enter the Virtual Zero Reference (deg)."
             ),
             style="PanelSubtitle.TLabel",
             justify="left",
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 8))
-        ttk.Label(frame, text="Virtual Zero Reference (deg)", style="FieldLabel.TLabel").grid(row=2, column=0, sticky="w")
+        ttk.Label(frame, text="Initialization Status", style="FieldLabel.TLabel").grid(row=2, column=0, sticky="w")
+        homing_status_var = tk.StringVar(value="Starting homing to mechanical zero...")
+        ttk.Label(frame, textvariable=homing_status_var, style="PanelSubtitle.TLabel").grid(
+            row=2,
+            column=1,
+            sticky="w",
+            padx=(8, 0),
+        )
+        ttk.Label(frame, text="Virtual Zero Reference (deg)", style="FieldLabel.TLabel").grid(row=3, column=0, sticky="w", pady=(8, 0))
         entry = ttk.Entry(frame, textvariable=value_var)
-        entry.grid(row=2, column=1, sticky="ew", padx=(8, 0))
+        entry.grid(row=3, column=1, sticky="ew", padx=(8, 0), pady=(8, 0))
+        entry.configure(state="disabled")
 
         message_var = tk.StringVar(value="")
-        ttk.Label(frame, textvariable=message_var, style="Warning.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Label(frame, textvariable=message_var, style="Warning.TLabel").grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        def set_virtual_zero_input_enabled(enabled: bool) -> None:
+            entry.configure(state="normal" if enabled else "disabled")
+            apply_button.configure(state="normal" if enabled else "disabled")
+
+        def poll_homing_completion() -> None:
+            nonlocal homing_motion_seen, homing_poll_id
+            if cancelled.get():
+                return
+            telemetry = self._controller.get_latest_telemetry()
+            if telemetry is not None and telemetry.running:
+                homing_motion_seen = True
+                homing_status_var.set("Homing in progress: rotating CCW toward mechanical zero...")
+            if self._startup_homing_finished(telemetry, homing_motion_seen):
+                homing_complete.set(True)
+                homing_status_var.set("Mechanical zero found. Enter the virtual zero reference to continue.")
+                self.set_status(
+                    "Mechanical Zero Found",
+                    "The stage reached mechanical zero. Enter the virtual zero reference and apply it to finish startup.",
+                    "success",
+                )
+                set_virtual_zero_input_enabled(True)
+                entry.focus_set()
+                return
+            homing_poll_id = dialog.after(self.HOMING_POLL_INTERVAL_MS, poll_homing_completion)
+
+        def start_homing() -> None:
+            nonlocal homing_poll_id
+            try:
+                self._controller.set_telemetry_rate(self.CONTROLLER_TELEMETRY_RATE_HZ)
+                self._controller.rotate_mechanical_zero()
+            except CommandQueuedError as exc:
+                message_var.set(f"Startup homing is queued: {exc} Queue position: {exc.queue_position}.")
+                self.set_status("Startup Homing Queued", message_var.get(), "warning")
+                return
+            except Exception as exc:
+                message_var.set(f"Mechanical homing failed to start: {exc}")
+                self.set_status("Startup Homing Failed", str(exc), "error")
+                return
+            self.set_status(
+                "Finding Mechanical Zero",
+                "The stage is rotating CCW toward the home sensor before virtual zero is applied.",
+                "warning",
+            )
+            homing_poll_id = dialog.after(self.HOMING_POLL_INTERVAL_MS, poll_homing_completion)
 
         def on_confirm() -> None:
+            if not homing_complete.get():
+                message_var.set("Wait for mechanical homing to complete before applying the virtual zero reference.")
+                return
             try:
                 value_deg = float(value_var.get())
                 self._params_panel.set_virtual_zero_offset(value_deg)
@@ -251,18 +321,24 @@ class MainWindow(tk.Tk):
             dialog.destroy()
 
         def on_cancel() -> None:
+            nonlocal homing_poll_id
             cancelled.set(True)
+            if homing_poll_id is not None:
+                dialog.after_cancel(homing_poll_id)
+                homing_poll_id = None
             dialog.destroy()
             self.destroy()
 
         button_row = ttk.Frame(frame, style="App.TFrame")
-        button_row.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        button_row.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         button_row.columnconfigure((0, 1), weight=1)
         ttk.Button(button_row, text="Cancel", style="Secondary.TButton", command=on_cancel).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-        ttk.Button(button_row, text="Apply and Continue", style="Primary.TButton", command=on_confirm).grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        apply_button = ttk.Button(button_row, text="Apply and Continue", style="Primary.TButton", command=on_confirm)
+        apply_button.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        apply_button.configure(state="disabled")
 
         frame.columnconfigure(1, weight=1)
-        entry.focus_set()
         dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+        dialog.after(0, start_homing)
         self.wait_window(dialog)
         return bool(confirmed.get()) and not bool(cancelled.get())
